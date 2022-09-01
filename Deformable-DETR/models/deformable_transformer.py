@@ -131,6 +131,10 @@ class DeformableTransformer(nn.Module):
         mask_flatten = []
         lvl_pos_embed_flatten = []
         spatial_shapes = []
+        """NOTE:
+        之所以通过循环分开处理是因为本身各个scale输出的尺寸就不同,无法并行,因此干脆拆开更简洁一些
+        lvl - level, src[i], mask[i], pos_embed[i]均对应level i
+        """
         for lvl, (src, mask, pos_embed) in enumerate(zip(srcs, masks, pos_embeds)):
             bs, c, h, w = src.shape
             spatial_shape = (h, w)
@@ -139,7 +143,7 @@ class DeformableTransformer(nn.Module):
             mask = mask.flatten(1)
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
             lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
-            lvl_pos_embed_flatten.append(lvl_pos_embed)
+            lvl_pos_embed_flatten.append(lvl_pos_embed) # lvl embedding + position embedding
             src_flatten.append(src)
             mask_flatten.append(mask)
         src_flatten = torch.cat(src_flatten, 1)
@@ -151,6 +155,7 @@ class DeformableTransformer(nn.Module):
 
         # encoder
         memory = self.encoder(src_flatten, spatial_shapes, level_start_index, valid_ratios, lvl_pos_embed_flatten, mask_flatten)
+        """two-stage 还是要先过 encoder, 不是直接用decoder替换原来decoder"""
 
         # prepare input for decoder
         bs, _, c = memory.shape
