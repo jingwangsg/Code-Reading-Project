@@ -124,6 +124,8 @@ class Joiner(nn.Sequential):
 
         # position encoding
         for x in out:
+            # self[1] 对应 positional embedding
+            # 看似输入x，实际上只用到了x的shape
             pos.append(self[1](x).to(x.tensors.dtype))
 
         return out, pos

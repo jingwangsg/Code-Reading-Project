@@ -130,6 +130,10 @@ class DeformableDETR(nn.Module):
             samples = nested_tensor_from_tensor_list(samples)
         features, pos = self.backbone(samples)
 
+        """
+        features: Dict["layer name" => NestedTensor]
+        pos: Tensor
+        """
         srcs = []
         masks = []
         for l, feat in enumerate(features):
@@ -146,6 +150,8 @@ class DeformableDETR(nn.Module):
                     src = self.input_proj[l](srcs[-1])
                 m = samples.mask
                 mask = F.interpolate(m[None].float(), size=src.shape[-2:]).to(torch.bool)[0]
+                # 注: self.backbone对应backbone.py中的Joiner类，继承自nn.Sequential，因此可以采用[1]索引
+                # 对应的是positional_embedding
                 pos_l = self.backbone[1](NestedTensor(src, mask)).to(src.dtype)
                 srcs.append(src)
                 masks.append(mask)
