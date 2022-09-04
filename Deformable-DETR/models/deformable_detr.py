@@ -132,7 +132,7 @@ class DeformableDETR(nn.Module):
 
         """
         features: Dict["layer name" => NestedTensor]
-        pos: Tensor
+        pos: Tensor [bsz, 100, h, w]
         """
         srcs = []
         masks = []

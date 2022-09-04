@@ -115,6 +115,9 @@ class DeformableTransformer(nn.Module):
         return output_memory, output_proposals
 
     def get_valid_ratio(self, mask):
+        """
+        返回mask沿长宽方向的有效位置的占比
+        """
         _, H, W = mask.shape
         valid_H = torch.sum(~mask[:, :, 0], 1)
         valid_W = torch.sum(~mask[:, 0, :], 1)
@@ -151,6 +154,9 @@ class DeformableTransformer(nn.Module):
         lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
         spatial_shapes = torch.as_tensor(spatial_shapes, dtype=torch.long, device=src_flatten.device)
         level_start_index = torch.cat((spatial_shapes.new_zeros((1, )), spatial_shapes.prod(1).cumsum(0)[:-1]))
+        # x.new_zeros: same dtype with x
+        # x.prod(axis=1): x[:, 0] * x[:, 1] * ...
+        # x.cumsum(0): cumulative sum over axis 0
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
 
         # encoder
@@ -160,6 +166,7 @@ class DeformableTransformer(nn.Module):
         # prepare input for decoder
         bs, _, c = memory.shape
         if self.two_stage:
+            """first stage of two-stage Deformable DETR"""
             output_memory, output_proposals = self.gen_encoder_output_proposals(memory, mask_flatten, spatial_shapes)
 
             # hack implementation for two-stage Deformable DETR
@@ -174,6 +181,8 @@ class DeformableTransformer(nn.Module):
             init_reference_out = reference_points
             pos_trans_out = self.pos_trans_norm(self.pos_trans(self.get_proposal_pos_embed(topk_coords_unact)))
             query_embed, tgt = torch.split(pos_trans_out, c, dim=2)
+            # query embed 在 two stage 中是由 first stage生成的
+            # TODO: query_embed和tgt分别是什么意思
         else:
             query_embed, tgt = torch.split(query_embed, c, dim=1)
             query_embed = query_embed.unsqueeze(0).expand(bs, -1, -1)
@@ -345,6 +354,7 @@ class DeformableTransformerDecoder(nn.Module):
             # hack implementation for iterative bounding box refinement
             if self.bbox_embed is not None:
                 tmp = self.bbox_embed[lid](output)
+                # reference_points.shape[-1] 为 4 代表模式为two-stage，输入的是first stage的proposal，否则为one-stage
                 if reference_points.shape[-1] == 4:
                     new_reference_points = tmp + inverse_sigmoid(reference_points)
                     new_reference_points = new_reference_points.sigmoid()

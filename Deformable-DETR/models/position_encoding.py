@@ -78,9 +78,10 @@ class PositionEmbeddingLearned(nn.Module):
         x_emb = self.col_embed(i)
         y_emb = self.row_embed(j)
         pos = torch.cat([
-            x_emb.unsqueeze(0).repeat(h, 1, 1),
-            y_emb.unsqueeze(1).repeat(1, w, 1),
+            x_emb.unsqueeze(0).repeat(h, 1, 1),  # [h, w, 50]
+            y_emb.unsqueeze(1).repeat(1, w, 1),  # [h, w, 50]
         ], dim=-1).permute(2, 0, 1).unsqueeze(0).repeat(x.shape[0], 1, 1, 1)
+        # [h, w, 100] => [100, h, w] => [1, 100, h, w] => [bsz, 100, h, w]
         return pos
 
 
