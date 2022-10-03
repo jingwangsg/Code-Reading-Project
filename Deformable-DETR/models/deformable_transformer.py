@@ -181,9 +181,6 @@ class DeformableTransformer(nn.Module):
         # x.new_zeros: same dtype with x
         # x.prod(axis=1): x[:, 0] * x[:, 1] * ...
         # x.cumsum(0): cumulative sum over axis 0
-        import ipdb
-
-        ipdb.set_trace()  # FIXME
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
 
         # encoder
@@ -343,6 +340,7 @@ class DeformableTransformerEncoder(nn.Module):
         reference_points = self.get_reference_points(
             spatial_shapes, valid_ratios, device=src.device
         )
+        import ipdb; ipdb.set_trace() #FIXME
         for _, layer in enumerate(self.layers):
             output = layer(
                 output, pos, reference_points, spatial_shapes, level_start_index, padding_mask
