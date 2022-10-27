@@ -20,6 +20,6 @@ def __test_detr__(args):
 if __name__ == "__main__":
     args = get_args_parser()
     args = args.parse_args()
-    # args.two_stage=True
+    args.two_stage=True
     black_pprint(args)
     __test_detr__(args)
