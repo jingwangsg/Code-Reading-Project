@@ -55,9 +55,7 @@ class VideoModulatedSTGrounding(Dataset):
             video_fps = video["fps"]  # used for extraction
             sampling_rate = fps / video_fps
             assert sampling_rate <= 1  # downsampling at fps
-            start_frame = (
-                video["start_frame"] if self.tmp_loc else video["tube_start_frame"]
-            )
+            start_frame = video["start_frame"] if self.tmp_loc else video["tube_start_frame"]
             end_frame = video["end_frame"] if self.tmp_loc else video["tube_end_frame"]
             frame_ids = [start_frame]
             for frame_id in range(start_frame, end_frame):
@@ -66,8 +64,7 @@ class VideoModulatedSTGrounding(Dataset):
 
             if len(frame_ids) > video_max_len:  # subsample at video_max_len
                 frame_ids = [
-                    frame_ids[(j * len(frame_ids)) // video_max_len]
-                    for j in range(video_max_len)
+                    frame_ids[(j * len(frame_ids)) // video_max_len] for j in range(video_max_len)
                 ]
 
             inter_frames = set(
@@ -97,9 +94,7 @@ class VideoModulatedSTGrounding(Dataset):
         clip_start = video["start_frame"]  # included
         clip_end = video["end_frame"]  # excluded
         frame_ids, inter_frames = self.vid2imgids[video_id]
-        trajectory = self.annotations["trajectories"][video_original_id][
-            str(video["target_id"])
-        ]
+        trajectory = self.annotations["trajectories"][video_original_id][str(video["target_id"])]
 
         # ffmpeg decoding
         vid_path = os.path.join(self.vid_folder, "video", video["video_path"])
@@ -137,12 +132,9 @@ class VideoModulatedSTGrounding(Dataset):
         else:
             images, targets = images_list, targets_list
 
-        if (
-            inter_idx
-        ):  # number of boxes should be the number of frames in annotated moment
+        if inter_idx:  # number of boxes should be the number of frames in annotated moment
             assert (
-                len([x for x in targets if len(x["boxes"])])
-                == inter_idx[-1] - inter_idx[0] + 1
+                len([x for x in targets if len(x["boxes"])]) == inter_idx[-1] - inter_idx[0] + 1
             ), (len([x for x in targets if len(x["boxes"])]), inter_idx)
 
         # temporal crop
@@ -177,16 +169,10 @@ class VideoModulatedSTGrounding(Dataset):
                 prev_start_frame = frame_ids[0]
                 prev_end_frame = frame_ids[-1]
                 frame_ids = [
-                    x
-                    for i, x in enumerate(frame_ids)
-                    if new_start_idx <= i <= new_end_idx
+                    x for i, x in enumerate(frame_ids) if new_start_idx <= i <= new_end_idx
                 ]
                 images = images[:, new_start_idx : new_end_idx + 1]  # CTHW
-                targets = [
-                    x
-                    for i, x in enumerate(targets)
-                    if new_start_idx <= i <= new_end_idx
-                ]
+                targets = [x for i, x in enumerate(targets) if new_start_idx <= i <= new_end_idx]
                 clip_start += frame_ids[0] - prev_start_frame
                 clip_end += frame_ids[-1] - prev_end_frame
                 if inter_idx:
@@ -211,27 +197,19 @@ class VideoModulatedSTGrounding(Dataset):
                 new_start_idx = 0
 
             # select the end index
-            new_end_idx = min(
-                new_start_idx + self.video_max_len_train - 1, len(frame_ids) - 1
-            )
+            new_end_idx = min(new_start_idx + self.video_max_len_train - 1, len(frame_ids) - 1)
 
             # update everything
             prev_start_frame = frame_ids[0]
             prev_end_frame = frame_ids[-1]
-            frame_ids = [
-                x for i, x in enumerate(frame_ids) if new_start_idx <= i <= new_end_idx
-            ]
+            frame_ids = [x for i, x in enumerate(frame_ids) if new_start_idx <= i <= new_end_idx]
             images = images[:, new_start_idx : new_end_idx + 1]  # CTHW
-            targets = [
-                x for i, x in enumerate(targets) if new_start_idx <= i <= new_end_idx
-            ]
+            targets = [x for i, x in enumerate(targets) if new_start_idx <= i <= new_end_idx]
             clip_start += frame_ids[0] - prev_start_frame
             clip_end += frame_ids[-1] - prev_end_frame
             if inter_idx:
                 inter_idx = [
-                    x - new_start_idx
-                    for x in inter_idx
-                    if new_start_idx <= x <= new_end_idx
+                    x - new_start_idx for x in inter_idx if new_start_idx <= x <= new_end_idx
                 ]
 
         # video level annotations
@@ -269,9 +247,7 @@ def build(image_set, args):
     dataset = VideoModulatedSTGrounding(
         vid_dir,
         ann_file,
-        transforms=make_video_transforms(
-            image_set, cautious=True, resolution=args.resolution
-        ),
+        transforms=make_video_transforms(image_set, cautious=True, resolution=args.resolution),
         is_train=image_set == "train",
         video_max_len=args.video_max_len,
         video_max_len_train=args.video_max_len_train,
