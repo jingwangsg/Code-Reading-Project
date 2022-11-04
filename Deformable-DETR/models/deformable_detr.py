@@ -160,8 +160,16 @@ class DeformableDETR(nn.Module):
         query_embeds = None
         if not self.two_stage:
             query_embeds = self.query_embed.weight
+
+        #! 此处进入transformer
+        # srcs 对应不同level的representation
+        # masks 对应不同level的mask
+        # pos 对应
+        # 如果是two_stage, query_embeds对应的是query_embed的matrix
+        # 如果是one stage, query_embeds为None
         hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact = self.transformer(srcs, masks, pos, query_embeds)
 
+        # 后处理
         outputs_classes = []
         outputs_coords = []
         for lvl in range(hs.shape[0]):
