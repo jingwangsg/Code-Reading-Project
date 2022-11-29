@@ -1,2 +1,2 @@
 # Code-Reading-Project
-Reading project for researching purpose
+Reading project for research purpose
