@@ -8,6 +8,7 @@ import math
 # todo: add this to config
 # NUM_SPECIAL_WORDS = 1000
 
+
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_hid, n_position=116):
@@ -18,6 +19,7 @@ class PositionalEncoding(nn.Module):
 
     def _get_sinusoid_encoding_table(self, n_position, d_hid):
         ''' Sinusoid position encoding table '''
+
         # TODO: make it with torch instead of numpy
 
         def get_position_angle_vec(position):
@@ -32,7 +34,9 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         return x + self.pos_table[:, :x.size(1)].clone().detach()
 
+
 class BaseModel(nn.Module):
+
     def __init__(self, config, **kwargs):
         self.config = config
         super(BaseModel, self).__init__()
@@ -55,14 +59,15 @@ class BaseModel(nn.Module):
 
 
 class VisualLinguisticBert(BaseModel):
+
     def __init__(self, dataset, config, language_pretrained_model_path=None):
         super(VisualLinguisticBert, self).__init__(config)
 
         self.config = config
 
         # embeddings
-        self.mask_embeddings = nn.Embedding(1, config.hidden_size) 
-        self.word_mapping = nn.Linear(300, config.hidden_size)    # 300 is the dim of glove vector
+        self.mask_embeddings = nn.Embedding(1, config.hidden_size)
+        self.word_mapping = nn.Linear(300, config.hidden_size)  # 300 is the dim of glove vector
         self.text_embedding_LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
         self.text_embedding_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.visual_embedding_LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
@@ -108,8 +113,7 @@ class VisualLinguisticBert(BaseModel):
                 output_attention_probs=False):
 
         # get seamless concatenate embeddings and mask
-        text_embeddings, visual_embeddings = self.embedding(text_input_feats,
-                                                            text_mask, word_mask,
+        text_embeddings, visual_embeddings = self.embedding(text_input_feats, text_mask, word_mask,
                                                             object_visual_embeddings)
 
         # We create a 3D attention mask from a 2D tensor mask.
@@ -131,17 +135,17 @@ class VisualLinguisticBert(BaseModel):
 
         if output_attention_probs:
             encoded_layers, attention_probs = self.encoder(text_embeddings,
-                                                            visual_embeddings,
-                                                            extended_attention_mask,
-                                                            output_all_encoded_layers=output_all_encoded_layers,
-                                                            output_attention_probs=output_attention_probs)
+                                                           visual_embeddings,
+                                                           extended_attention_mask,
+                                                           output_all_encoded_layers=output_all_encoded_layers,
+                                                           output_attention_probs=output_attention_probs)
         else:
             encoded_layers = self.encoder(text_embeddings,
-                                           visual_embeddings,
-                                           extended_attention_mask,
-                                           output_all_encoded_layers=output_all_encoded_layers,
-                                           output_attention_probs=output_attention_probs)
-            
+                                          visual_embeddings,
+                                          extended_attention_mask,
+                                          output_all_encoded_layers=output_all_encoded_layers,
+                                          output_attention_probs=output_attention_probs)
+
         # sequence_output = encoded_layers[-1]
         # pooled_output = self.pooler(sequence_output) if self.config.with_pooler else None
         if output_all_encoded_layers:
@@ -167,20 +171,18 @@ class VisualLinguisticBert(BaseModel):
             else:
                 return encoded_layers[0], encoded_layers[1]
 
-    def embedding(self,
-                  text_input_feats,
-                  text_mask,
-                  word_mask,
-                  object_visual_embeddings):
+    def embedding(self, text_input_feats, text_mask, word_mask, object_visual_embeddings):
 
         text_linguistic_embedding = self.word_mapping(text_input_feats)
         text_input_feats_temp = text_input_feats.clone()
         mask_word_mean = text_mask
         if self.training:
-            text_input_feats_temp[word_mask>0] = 0
+            text_input_feats_temp[word_mask > 0] = 0
             mask_word_mean = text_mask * (1. - word_mask)
-            _zero_id = torch.zeros(text_linguistic_embedding.shape[:2], dtype=torch.long, device=text_linguistic_embedding.device)
-            text_linguistic_embedding[word_mask>0] = self.mask_embeddings(_zero_id)[word_mask>0]
+            _zero_id = torch.zeros(text_linguistic_embedding.shape[:2],
+                                   dtype=torch.long,
+                                   device=text_linguistic_embedding.device)
+            text_linguistic_embedding[word_mask > 0] = self.mask_embeddings(_zero_id)[word_mask > 0]
 
         if self.visual_1x1_object is not None:
             object_visual_embeddings = self.visual_1x1_object(object_visual_embeddings)
@@ -189,7 +191,9 @@ class VisualLinguisticBert(BaseModel):
 
         embeddings = torch.cat([object_visual_embeddings, text_linguistic_embedding], dim=1)
         embeddings = self.postion_encoding(embeddings)
-        visual_embeddings, text_embeddings = torch.split(embeddings, [object_visual_embeddings.size(1),text_linguistic_embedding.size(1)], 1)
+        visual_embeddings, text_embeddings = torch.split(
+            embeddings,
+            [object_visual_embeddings.size(1), text_linguistic_embedding.size(1)], 1)
 
         text_embeddings = self.text_embedding_LayerNorm(text_embeddings)
         text_embeddings = self.text_embedding_dropout(text_embeddings)
@@ -269,8 +273,13 @@ class VisualLinguisticBert(BaseModel):
 
 
 class VisualLinguisticBertForPretraining(VisualLinguisticBert):
-    def __init__(self, config, language_pretrained_model_path=None,
-                 with_rel_head=True, with_mlm_head=True, with_mvrc_head=True):
+
+    def __init__(self,
+                 config,
+                 language_pretrained_model_path=None,
+                 with_rel_head=True,
+                 with_mlm_head=True,
+                 with_mvrc_head=True):
 
         super(VisualLinguisticBertForPretraining, self).__init__(config, language_pretrained_model_path=None)
 
@@ -312,16 +321,15 @@ class VisualLinguisticBertForPretraining(VisualLinguisticBert):
                 output_all_encoded_layers=True,
                 output_text_and_object_separately=False):
 
-        text_out, object_out, pooled_rep = super(VisualLinguisticBertForPretraining, self).forward(
-            text_input_ids,
-            text_token_type_ids,
-            text_visual_embeddings,
-            text_mask,
-            object_vl_embeddings,
-            object_mask,
-            output_all_encoded_layers=False,
-            output_text_and_object_separately=True
-        )
+        text_out, object_out, pooled_rep = super(VisualLinguisticBertForPretraining,
+                                                 self).forward(text_input_ids,
+                                                               text_token_type_ids,
+                                                               text_visual_embeddings,
+                                                               text_mask,
+                                                               object_vl_embeddings,
+                                                               object_mask,
+                                                               output_all_encoded_layers=False,
+                                                               output_text_and_object_separately=True)
 
         if self.with_rel_head:
             relationship_logits = self.relationsip_head(pooled_rep)
@@ -430,6 +438,7 @@ class VisualLinguisticBertForPretraining(VisualLinguisticBert):
 
 
 class VisualLinguisticBertMVRCHeadTransform(BaseModel):
+
     def __init__(self, config):
         super(VisualLinguisticBertMVRCHeadTransform, self).__init__(config)
 
@@ -446,6 +455,7 @@ class VisualLinguisticBertMVRCHeadTransform(BaseModel):
 
 
 class VisualLinguisticBertMVRCHead(BaseModel):
+
     def __init__(self, config):
         super(VisualLinguisticBertMVRCHead, self).__init__(config)
 
@@ -462,6 +472,7 @@ class VisualLinguisticBertMVRCHead(BaseModel):
 
 
 class VisualLinguisticBertRelationshipPredictionHead(BaseModel):
+
     def __init__(self, config):
         super(VisualLinguisticBertRelationshipPredictionHead, self).__init__(config)
 
@@ -473,4 +484,3 @@ class VisualLinguisticBertRelationshipPredictionHead(BaseModel):
         relationship_logits = self.caption_image_relationship(pooled_rep)
 
         return relationship_logits
-

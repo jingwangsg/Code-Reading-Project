@@ -86,7 +86,6 @@ class DETR(nn.Module):
         self.class_embed.bias.data = torch.ones(num_classes + 1) * bias_value
         nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
         nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
-
         """ <START> initialize class_embed, bbox_embed, ref_point_head
         class_embed: Linear prediction head for class
         bbox_embed: MLP prediction head for bbox
@@ -96,7 +95,7 @@ class DETR(nn.Module):
         num_pred = transformer.decoder.num_layers
         if box_refine:
             # deepcopy class_embed and bbox_embed
-            self.class_embed = _get_clones(self.class_embed, num_pred)  
+            self.class_embed = _get_clones(self.class_embed, num_pred)
             self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
             nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
         else:

@@ -29,7 +29,8 @@ class MLP(nn.Module):
         super().__init__()
         self.num_layers = num_layers
         h = [hidden_dim] * (num_layers - 1)
-        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+        self.layers = nn.ModuleList(
+            nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
 
     def forward(self, x):
         for i, layer in enumerate(self.layers):
@@ -54,19 +55,25 @@ class Transformer(nn.Module):
                  ms_roi=False):
         super().__init__()
 
-        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout, activation, normalize_before)
+        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
+                                                dropout, activation,
+                                                normalize_before)
         encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
-        self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
+        self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers,
+                                          encoder_norm)
 
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout, activation, normalize_before)
+        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
+                                                dropout, activation,
+                                                normalize_before)
         decoder_norm = nn.LayerNorm(d_model)
-        self.decoder = TransformerDecoder(decoder_layer,
-                                          num_decoder_layers,
-                                          decoder_norm,
-                                          return_intermediate=return_intermediate_dec,
-                                          ms_roi=ms_roi,
-                                          pooler_resolution=pooler_resolution,
-                                          num_feature_levels=num_feature_levels)
+        self.decoder = TransformerDecoder(
+            decoder_layer,
+            num_decoder_layers,
+            decoder_norm,
+            return_intermediate=return_intermediate_dec,
+            ms_roi=ms_roi,
+            pooler_resolution=pooler_resolution,
+            num_feature_levels=num_feature_levels)
 
         self._reset_parameters()
 
@@ -78,7 +85,13 @@ class Transformer(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, src, mask, query_embed, pos_embed, meta_info=None, ms_feats=None):
+    def forward(self,
+                src,
+                mask,
+                query_embed,
+                pos_embed,
+                meta_info=None,
+                ms_feats=None):
         # flatten NxCxHxW to HWxNxC
         meta_info['src_size'] = src.shape
         bs, c, h, w = src.shape
@@ -96,7 +109,10 @@ class Transformer(nn.Module):
                                          query_pos=query_embed,
                                          meta_info=meta_info,
                                          ms_feats=ms_feats)
-        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), outputs_coord
+        # query_embed will not be updated
+        return hs.transpose(1, 2), memory.permute(1, 2,
+                                                  0).view(bs, c, h,
+                                                          w), outputs_coord
 
 
 class TransformerEncoder(nn.Module):
@@ -115,7 +131,10 @@ class TransformerEncoder(nn.Module):
         output = src
 
         for layer in self.layers:
-            output = layer(output, src_mask=mask, src_key_padding_mask=src_key_padding_mask, pos=pos)
+            output = layer(output,
+                           src_mask=mask,
+                           src_key_padding_mask=src_key_padding_mask,
+                           pos=pos)
 
         if self.norm is not None:
             output = self.norm(output)
@@ -156,14 +175,18 @@ class TransformerDecoder(nn.Module):
         self.ref_point_head = None
 
     @staticmethod
-    def _init_box_pooler(num_feature_levels=1, pooler_resolution=4, sampling_ratio=2, pooler_type="ROIAlignV2"):
+    def _init_box_pooler(num_feature_levels=1,
+                         pooler_resolution=4,
+                         sampling_ratio=2,
+                         pooler_type="ROIAlignV2"):
         """
         Modified from Sparse RCNN project
         NOTE currently only consider single scale input
         """
         assert num_feature_levels in [1, 3, 4]
         all_stride = [8, 16, 32, 64]
-        input_stride = [32] if num_feature_levels == 1 else all_stride[:num_feature_levels]
+        input_stride = [32] if num_feature_levels == 1 \
+            else all_stride[:num_feature_levels]
         pooler_scales = [1. / input_s for input_s in input_stride]
         box_pooler = ROIPooler(
             output_size=pooler_resolution,
@@ -188,7 +211,9 @@ class TransformerDecoder(nn.Module):
         """
         assert num_feature_levels in [1, 3, 4]
         all_stride = [8, 16, 32, 64]
-        input_strides = [32] if num_feature_levels == 1 else all_stride[:num_feature_levels]
+        input_strides = [
+            32
+        ] if num_feature_levels == 1 else all_stride[:num_feature_levels]
         pooler_scales = [1. / s for s in input_strides]
         pooler_resolution_list = [pooler_resolution for _ in range(len(input_strides))] \
             if type(pooler_resolution) == int else pooler_resolution
@@ -202,7 +227,12 @@ class TransformerDecoder(nn.Module):
         )
         return box_pooler
 
-    def update_memory_with_roi(self, memory, pos, coord_norm, meta_info, ms_feats=None):
+    def update_memory_with_roi(self,
+                               memory,
+                               pos,
+                               coord_norm,
+                               meta_info,
+                               ms_feats=None):
         """
         memory: (seq_len, bs, dim)
                 output of transformer encoder, used as value in cross attn
@@ -211,7 +241,8 @@ class TransformerDecoder(nn.Module):
         """
         # adjust boxes to xyxy format, and input image size
         boxes = box_ops.box_cxcywh_to_xyxy(coord_norm)
-        boxes = boxes * meta_info['size'].repeat(1, 2).unsqueeze(1)  # (bs, 100, 4)
+        boxes = boxes * meta_info['size'].repeat(1, 2).unsqueeze(
+            1)  # (bs, 100, 4)
         # warp as Boxes list (directly copied from Sparse RCNN)
         N, nr_boxes = boxes.shape[:2]
         proposal_boxes = list()
@@ -229,18 +260,22 @@ class TransformerDecoder(nn.Module):
             feat2pool = ms_feats
         else:
             feat2pool = [memory_pos_2d]
-        output = self.box_pooler(feat2pool, proposal_boxes)  # box_pooler takes list as inputs
+        output = self.box_pooler(feat2pool, proposal_boxes)
+        # box_pooler takes list as inputs
         if self.ms_roi:
             assert type(output) == list
             output_list = []
             for output_ in output:
                 output_ = output_.flatten(2).view(bs, nr_boxes, 2 * c, -1)
-                output_ = output_.permute(3, 1, 0, 2)  # (seq_len, nr_boxes, bs, c)
+                output_ = output_.permute(3, 1, 0,
+                                          2)  # (seq_len, nr_boxes, bs, c)
                 output_list.append(output_)
             output = torch.cat(output_list, dim=0)
         else:
             output = output.flatten(2).view(bs, nr_boxes, 2 * c, -1)
-            output = output.permute(3, 1, 0, 2)  # (seq_len, nr_boxes, bs, c) roi crop order: (bs * nr_boxes)
+            output = output.permute(
+                3, 1, 0,
+                2)  # (seq_len, nr_boxes, bs, c) roi crop order: (bs * nr_boxes)
 
         output, output_pos = torch.split(output, c, dim=-1)
 
@@ -313,12 +348,14 @@ class TransformerDecoder(nn.Module):
             tmp = self.bbox_embed[lid](output_norm)
             # when use bbox_refine, coord_norm equals to the updated references
             if not self.box_refine:
-                tmp = self.pred_with_init_reference(tmp, reference_points_before_sigmoid)
+                tmp = self.pred_with_init_reference(
+                    tmp, reference_points_before_sigmoid)
                 coord_norm = tmp.sigmoid().transpose(0, 1)  # batch first
             else:
                 # hack implementation for iterative bounding box refinement
                 if lid == 0:
-                    tmp = self.pred_with_init_reference(tmp, reference_points_before_sigmoid)
+                    tmp = self.pred_with_init_reference(
+                        tmp, reference_points_before_sigmoid)
                     # if at first stage, tmp = tmp + initial reference
                 else:
                     assert reference_points.shape[-1] == 4
@@ -335,22 +372,34 @@ class TransformerDecoder(nn.Module):
             """<START> update memory and pos"""
             # update output feature here by roi align  (Nk_new, B*Nq, dim)
             roi_bbox = coord_norm.detach()
-            memory, pos = self.update_memory_with_roi(memory_full, pos_full, roi_bbox, meta_info, ms_feats=ms_feats)
+            memory, pos = self.update_memory_with_roi(memory_full,
+                                                      pos_full,
+                                                      roi_bbox,
+                                                      meta_info,
+                                                      ms_feats=ms_feats)
             # make memory_key_padding_mask
-            memory_key_padding_mask = torch.zeros((B, memory.shape[0]),
-                                                  dtype=memory_key_padding_mask.dtype,
-                                                  device=memory_key_padding_mask.device)
+            memory_key_padding_mask = torch.zeros(
+                (B, memory.shape[0]),
+                dtype=memory_key_padding_mask.dtype,
+                device=memory_key_padding_mask.device)
             """<END> update memory and pos"""
 
         if self.return_intermediate:
-            return torch.stack(intermediate), torch.stack(intermediate_references)
+            return torch.stack(intermediate), torch.stack(
+                intermediate_references)
 
         return output_norm.unsqueeze(0), coord_norm
 
 
 class TransformerEncoderLayer(nn.Module):
 
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False):
+    def __init__(self,
+                 d_model,
+                 nhead,
+                 dim_feedforward=2048,
+                 dropout=0.1,
+                 activation="relu",
+                 normalize_before=False):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
@@ -375,7 +424,11 @@ class TransformerEncoderLayer(nn.Module):
                      src_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None):
         q = k = self.with_pos_embed(src, pos)
-        src2 = self.self_attn(q, k, value=src, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
+        src2 = self.self_attn(q,
+                              k,
+                              value=src,
+                              attn_mask=src_mask,
+                              key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
@@ -390,7 +443,11 @@ class TransformerEncoderLayer(nn.Module):
                     pos: Optional[Tensor] = None):
         src2 = self.norm1(src)
         q = k = self.with_pos_embed(src2, pos)
-        src2 = self.self_attn(q, k, value=src2, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
+        src2 = self.self_attn(q,
+                              k,
+                              value=src2,
+                              attn_mask=src_mask,
+                              key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         src2 = self.norm2(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src2))))
@@ -409,11 +466,19 @@ class TransformerEncoderLayer(nn.Module):
 
 class TransformerDecoderLayer(nn.Module):
 
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False):
+    def __init__(self,
+                 d_model,
+                 nhead,
+                 dim_feedforward=2048,
+                 dropout=0.1,
+                 activation="relu",
+                 normalize_before=False):
         super().__init__()
         self.d_model = d_model
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.multihead_attn = nn.MultiheadAttention(d_model,
+                                                    nhead,
+                                                    dropout=dropout)
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
@@ -442,7 +507,11 @@ class TransformerDecoderLayer(nn.Module):
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None):
         q = k = self.with_pos_embed(tgt, query_pos)
-        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+        tgt2 = self.self_attn(q,
+                              k,
+                              value=tgt,
+                              attn_mask=tgt_mask,
+                              key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
         # original q, k (v=memory)
@@ -458,7 +527,8 @@ class TransformerDecoderLayer(nn.Module):
         cross_query = cross_query.reshape(1, Nq * bs, dim)
         cross_key = cross_key.reshape(Nk, Nq * bs, dim)
         memory = memory.reshape(Nk, Nq * bs, dim)
-        memory_key_padding_mask = memory_key_padding_mask.unsqueeze(0).repeat(Nq, 1, 1).view(Nq * bs, Nk)
+        memory_key_padding_mask = memory_key_padding_mask.unsqueeze(0)\
+            .repeat(Nq, 1, 1).view(Nq * bs, Nk)
         tgt2 = self.multihead_attn(query=cross_query,
                                    key=cross_key,
                                    value=memory,
@@ -483,7 +553,11 @@ class TransformerDecoderLayer(nn.Module):
                     query_pos: Optional[Tensor] = None):
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
-        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+        tgt2 = self.self_attn(q,
+                              k,
+                              value=tgt2,
+                              attn_mask=tgt_mask,
+                              key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt2 = self.norm2(tgt)
         tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
@@ -507,10 +581,12 @@ class TransformerDecoderLayer(nn.Module):
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None):
         if self.normalize_before:
-            return self.forward_pre(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask,
-                                    pos, query_pos)
-        return self.forward_post(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos,
-                                 query_pos)
+            return self.forward_pre(tgt, memory, tgt_mask, memory_mask,
+                                    tgt_key_padding_mask,
+                                    memory_key_padding_mask, pos, query_pos)
+        return self.forward_post(tgt, memory, tgt_mask, memory_mask,
+                                 tgt_key_padding_mask, memory_key_padding_mask,
+                                 pos, query_pos)
 
 
 def _get_clones(module, N):
