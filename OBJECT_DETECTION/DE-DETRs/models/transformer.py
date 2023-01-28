@@ -21,6 +21,8 @@ from detectron2.structures import Boxes
 from detectron2.modeling.poolers import ROIPooler
 from .ms_poolers import MSROIPooler
 
+from kn_util.debug import explore_content as EC
+
 
 class MLP(nn.Module):
     """ Very simple multi-layer perceptron (also called FFN)"""
@@ -323,6 +325,7 @@ class TransformerDecoder(nn.Module):
 
         intermediate = []
         intermediate_references = []
+        import ipdb; ipdb.set_trace() #FIXME ipdb
 
         for lid, layer in enumerate(self.layers):
             output = layer(output,
@@ -514,6 +517,7 @@ class TransformerDecoderLayer(nn.Module):
                               key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
+        import ipdb; ipdb.set_trace() #FIXME ipdb
         # original q, k (v=memory)
         cross_query = self.with_pos_embed(tgt, query_pos)
         cross_key = self.with_pos_embed(memory, pos)

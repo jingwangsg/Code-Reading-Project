@@ -25,6 +25,8 @@ import math
 torch.manual_seed(0)
 torch.cuda.manual_seed(0)
 torch.autograd.set_detect_anomaly(True)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train localization network')
 
@@ -46,6 +48,7 @@ def parse_args():
     args = parser.parse_args()
 
     return args
+
 
 def reset_config(config, args):
     if args.gpus:
@@ -70,8 +73,8 @@ if __name__ == '__main__':
     reset_config(config, args)
 
     logger, final_output_dir = create_logger(config, args.cfg, config.TAG)
-    logger.info('\n'+pprint.pformat(args))
-    logger.info('\n'+pprint.pformat(config))
+    logger.info('\n' + pprint.pformat(args))
+    logger.info('\n' + pprint.pformat(config))
 
     # cudnn related setting
     cudnn.benchmark = config.CUDNN.BENCHMARK
@@ -95,13 +98,18 @@ if __name__ == '__main__':
     if torch.cuda.device_count() > 1:
         print("Using", torch.cuda.device_count(), "GPUs")
         model = torch.nn.DataParallel(model)
-    device = ("cuda" if torch.cuda.is_available() else "cpu" )
+    device = ("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    optimizer = optim.AdamW(model.parameters(),lr=config.TRAIN.LR, betas=(0.9, 0.999), weight_decay=config.TRAIN.WEIGHT_DECAY)
+    optimizer = optim.AdamW(model.parameters(),
+                            lr=config.TRAIN.LR,
+                            betas=(0.9, 0.999),
+                            weight_decay=config.TRAIN.WEIGHT_DECAY)
     # optimizer = optim.SGD(model.parameters(), lr=config.TRAIN.LR, momentum=0.9, weight_decay=config.TRAIN.WEIGHT_DECAY)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=config.TRAIN.FACTOR, patience=config.TRAIN.PATIENCE, verbose=config.VERBOSE)
-
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                     factor=config.TRAIN.FACTOR,
+                                                     patience=config.TRAIN.PATIENCE,
+                                                     verbose=config.VERBOSE)
 
     def iterator(split):
         if split == 'train':
@@ -148,8 +156,12 @@ if __name__ == '__main__':
         word_mask = sample['batch_word_mask'].cuda()
         gt_times = sample['batch_gt_times'].cuda()
 
-        logits_text, logits_visual, logits_iou, iou_mask_map = model(textual_input, textual_mask, word_mask, visual_input)
-        loss_value, joint_prob, iou_scores, regress = getattr(loss, config.LOSS.NAME)(config.LOSS.PARAMS, logits_text, logits_visual, logits_iou, iou_mask_map, map_gt, gt_times, word_label, word_mask)
+        logits_text, logits_visual, logits_iou, iou_mask_map = model(textual_input, textual_mask, word_mask,
+                                                                     visual_input)
+        loss_value, joint_prob, iou_scores, regress = getattr(loss,
+                                                              config.LOSS.NAME)(config.LOSS.PARAMS, logits_text,
+                                                                                logits_visual, logits_iou, iou_mask_map,
+                                                                                map_gt, gt_times, word_label, word_mask)
 
         sorted_times = None if model.training else get_proposal_results(iou_scores, regress, duration)
 
@@ -162,8 +174,11 @@ if __name__ == '__main__':
         regress = regress.cpu().detach().numpy()
 
         for score, reg, duration in zip(scores, regress, durations):
-            sorted_indexs = np.dstack(np.unravel_index(np.argsort(score.cpu().detach().numpy().ravel())[::-1], (T, T))).tolist()
-            sorted_indexs = np.array([ [reg[0,item[0],item[1]], reg[1,item[0],item[1]]] for item in sorted_indexs[0] if reg[0,item[0],item[1]] < reg[1,item[0],item[1]] ]).astype(float)
+            sorted_indexs = np.dstack(np.unravel_index(np.argsort(score.cpu().detach().numpy().ravel())[::-1],
+                                                       (T, T))).tolist()
+            sorted_indexs = np.array([[reg[0, item[0], item[1]], reg[1, item[0], item[1]]]
+                                      for item in sorted_indexs[0]
+                                      if reg[0, item[0], item[1]] < reg[1, item[0], item[1]]]).astype(float)
             sorted_indexs = torch.from_numpy(sorted_indexs).cuda()
             target_size = config.DATASET.NUM_SAMPLE_CLIPS // config.DATASET.TARGET_STRIDE
             out_sorted_times.append((sorted_indexs.float() / target_size * duration).tolist())
@@ -172,7 +187,7 @@ if __name__ == '__main__':
 
     def on_start(state):
         state['loss_meter'] = AverageMeter()
-        state['test_interval'] = int(len(train_dataset)/config.TRAIN.BATCH_SIZE*config.TEST.INTERVAL)
+        state['test_interval'] = int(len(train_dataset) / config.TRAIN.BATCH_SIZE * config.TEST.INTERVAL)
         state['t'] = 1
         model.train()
         if config.VERBOSE:
@@ -182,7 +197,7 @@ if __name__ == '__main__':
         torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
         state['loss_meter'].update(state['loss'].item(), 1)
 
-    def on_update(state):# Save All
+    def on_update(state):  # Save All
         if config.VERBOSE:
             state['progress_bar'].update(1)
 
@@ -197,7 +212,7 @@ if __name__ == '__main__':
                 train_state = engine.test(network, iterator('train_no_shuffle'), 'train')
                 train_table = eval.display_results(train_state['Rank@N,mIoU@M'], train_state['miou'],
                                                    'performance on training set')
-                table_message += '\n'+ train_table
+                table_message += '\n' + train_table
             if not config.DATASET.NO_VAL:
                 val_state = engine.test(network, iterator('val'), 'val')
                 state['scheduler'].step(-val_state['loss_meter'].avg)
@@ -205,7 +220,7 @@ if __name__ == '__main__':
                 val_state['loss_meter'].reset()
                 val_table = eval.display_results(val_state['Rank@N,mIoU@M'], val_state['miou'],
                                                  'performance on validation set')
-                table_message += '\n'+ val_table
+                table_message += '\n' + val_table
 
             test_state = engine.test(network, iterator('test'), 'test')
             loss_message += ' test loss {:.4f}'.format(test_state['loss_meter'].avg)
@@ -214,12 +229,15 @@ if __name__ == '__main__':
                                               'performance on testing set')
             table_message += '\n' + test_table
 
-            message = loss_message+table_message+'\n'
+            message = loss_message + table_message + '\n'
             logger.info(message)
 
-            saved_model_filename = os.path.join(config.MODEL_DIR,'{}/{}/iter{:06d}-{:.4f}-{:.4f}.pkl'.format(
-                dataset_name, model_name+'_'+config.DATASET.VIS_INPUT_TYPE,
-                state['t'], test_state['Rank@N,mIoU@M'][0,0], test_state['Rank@N,mIoU@M'][0,1]))
+            saved_model_filename = os.path.join(
+                config.MODEL_DIR,
+                '{}/{}/iter{:06d}-{:.4f}-{:.4f}.pkl'.format(dataset_name,
+                                                            model_name + '_' + config.DATASET.VIS_INPUT_TYPE,
+                                                            state['t'], test_state['Rank@N,mIoU@M'][0, 0],
+                                                            test_state['Rank@N,mIoU@M'][0, 1]))
 
             rootfolder1 = os.path.dirname(saved_model_filename)
             rootfolder2 = os.path.dirname(rootfolder1)
@@ -239,7 +257,6 @@ if __name__ == '__main__':
             else:
                 torch.save(model.state_dict(), saved_model_filename)
 
-
             if config.VERBOSE:
                 state['progress_bar'] = tqdm(total=state['test_interval'])
             model.train()
@@ -249,17 +266,16 @@ if __name__ == '__main__':
         if config.VERBOSE:
             state['progress_bar'].close()
 
-
     def on_test_start(state):
         state['loss_meter'] = AverageMeter()
         state['sorted_segments_list'] = []
         if config.VERBOSE:
             if state['split'] == 'train':
-                state['progress_bar'] = tqdm(total=math.ceil(len(train_dataset)/config.TEST.BATCH_SIZE))
+                state['progress_bar'] = tqdm(total=math.ceil(len(train_dataset) / config.TEST.BATCH_SIZE))
             elif state['split'] == 'val':
-                state['progress_bar'] = tqdm(total=math.ceil(len(val_dataset)/config.TEST.BATCH_SIZE))
+                state['progress_bar'] = tqdm(total=math.ceil(len(val_dataset) / config.TEST.BATCH_SIZE))
             elif state['split'] == 'test':
-                state['progress_bar'] = tqdm(total=math.ceil(len(test_dataset)/config.TEST.BATCH_SIZE))
+                state['progress_bar'] = tqdm(total=math.ceil(len(test_dataset) / config.TEST.BATCH_SIZE))
             else:
                 raise NotImplementedError
 
@@ -275,7 +291,9 @@ if __name__ == '__main__':
 
     def on_test_end(state):
         annotations = state['iterator'].dataset.annotations
-        state['Rank@N,mIoU@M'], state['miou'] = eval.eval_predictions(state['sorted_segments_list'], annotations, verbose=False)
+        state['Rank@N,mIoU@M'], state['miou'] = eval.eval_predictions(state['sorted_segments_list'],
+                                                                      annotations,
+                                                                      verbose=False)
         if config.VERBOSE:
             state['progress_bar'].close()
 
@@ -287,8 +305,4 @@ if __name__ == '__main__':
     engine.hooks['on_test_start'] = on_test_start
     engine.hooks['on_test_forward'] = on_test_forward
     engine.hooks['on_test_end'] = on_test_end
-    engine.train(network,
-                 iterator('train'),
-                 maxepoch=config.TRAIN.MAX_EPOCH,
-                 optimizer=optimizer,
-                 scheduler=scheduler)
+    engine.train(network, iterator('train'), maxepoch=config.TRAIN.MAX_EPOCH, optimizer=optimizer, scheduler=scheduler)

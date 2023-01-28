@@ -22,6 +22,7 @@ from .position_encoding import TimeEmbeddingSine, TimeEmbeddingLearned
 
 
 class Transformer(nn.Module):
+
     def __init__(
         self,
         d_model=512,
@@ -70,13 +71,9 @@ class Transformer(nn.Module):
         super().__init__()
 
         self.pass_pos_and_query = pass_pos_and_query
-        encoder_layer = TransformerEncoderLayer(
-            d_model, nhead, dim_feedforward, dropout, activation
-        )
+        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout, activation)
         encoder_norm = None
-        self.encoder = TransformerEncoder(
-            encoder_layer, num_encoder_layers, encoder_norm, return_weights=True
-        )
+        self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm, return_weights=True)
 
         decoder_layer = TransformerDecoderLayer(
             d_model,
@@ -113,12 +110,8 @@ class Transformer(nn.Module):
             if fast_mode == "gating":
                 self.fast_encoder = nn.Linear(d_model, d_model)
             elif fast_mode == "transformer":
-                encoder_layer = TransformerEncoderLayer(
-                    d_model, nhead, dim_feedforward, dropout, activation
-                )
-                self.fast_encoder = TransformerEncoder(
-                    encoder_layer, 1, nn.LayerNorm(d_model), return_weights=True
-                )
+                encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout, activation)
+                self.fast_encoder = TransformerEncoder(encoder_layer, 1, nn.LayerNorm(d_model), return_weights=True)
                 self.fast_residual = nn.Linear(d_model, d_model)
             else:
                 self.fast_encoder = nn.Linear(d_model, d_model)
@@ -127,12 +120,8 @@ class Transformer(nn.Module):
         self.rd_init_tsa = rd_init_tsa
         self._reset_temporal_parameters()
 
-        self.tokenizer = RobertaTokenizerFast.from_pretrained(
-            text_encoder_type, local_files_only=True
-        )
-        self.text_encoder = RobertaModel.from_pretrained(
-            text_encoder_type, local_files_only=True
-        )
+        self.tokenizer = RobertaTokenizerFast.from_pretrained(text_encoder_type, local_files_only=True)
+        self.text_encoder = RobertaModel.from_pretrained(text_encoder_type, local_files_only=True)
 
         if freeze_text_encoder:
             for p in self.text_encoder.parameters():
@@ -208,9 +197,7 @@ class Transformer(nn.Module):
             src = src.flatten(2).permute(2, 0, 1)
             pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
             mask = mask.flatten(1)
-            query_embed = query_embed.unsqueeze(1).repeat(
-                1, bs_oq, 1
-            )  # n_queriesx(b*t)xf
+            query_embed = query_embed.unsqueeze(1).repeat(1, bs_oq, 1)  # n_queriesx(b*t)xf
 
             n_queries, _, f = query_embed.shape
             query_embed = query_embed.view(
@@ -225,17 +212,13 @@ class Transformer(nn.Module):
             # prepare time queries mask
             query_mask = None
             if self.stride:
-                query_mask = (
-                    torch.ones(
-                        b,
-                        n_queries * t,
-                    )
-                    .bool()
-                    .to(device)
-                )
+                query_mask = (torch.ones(
+                    b,
+                    n_queries * t,
+                ).bool().to(device))
                 query_mask[:, 0] = False  # avoid empty masks
                 for i_dur, dur in enumerate(durations):
-                    query_mask[i_dur, : (dur * n_queries)] = False
+                    query_mask[i_dur, :(dur * n_queries)] = False
 
             if self.pass_pos_and_query:
                 tgt = torch.zeros_like(query_embed)
@@ -249,9 +232,7 @@ class Transformer(nn.Module):
 
             if isinstance(text[0], str):
                 # Encode the text
-                tokenized = self.tokenizer.batch_encode_plus(
-                    text, padding="longest", return_tensors="pt"
-                ).to(device)
+                tokenized = self.tokenizer.batch_encode_plus(text, padding="longest", return_tensors="pt").to(device)
                 encoded_text = self.text_encoder(**tokenized)
 
                 # Transpose memory because pytorch's attention expects sequence first
@@ -267,22 +248,13 @@ class Transformer(nn.Module):
 
             # encode caption once per video and repeat each caption X times where X is the number of clips in the video
             n_repeat = t if (not self.stride) else math.ceil(t / self.stride)
-            assert (
-                n_repeat
-                == src.shape[1] // text_memory_resized.shape[1]
-                == mask.shape[0] // text_attention_mask.shape[0]
-            )
-            tokenized._encodings = [
-                elt for elt in tokenized._encodings for _ in range(n_repeat)
-            ]  # repeat batchencodings output (BT)
+            assert (n_repeat == src.shape[1] // text_memory_resized.shape[1] ==
+                    mask.shape[0] // text_attention_mask.shape[0])
+            tokenized._encodings = [elt for elt in tokenized._encodings for _ in range(n_repeat)
+                                   ]  # repeat batchencodings output (BT)
             text_attention_mask_orig = text_attention_mask
             text_attention_mask = torch.stack(
-                [
-                    text_attention_mask[i_elt]
-                    for i_elt in range(len(text_attention_mask))
-                    for _ in range(n_repeat)
-                ]
-            )
+                [text_attention_mask[i_elt] for i_elt in range(len(text_attention_mask)) for _ in range(n_repeat)])
             text_memory_resized_orig = text_memory_resized
             text_memory_resized = torch.stack(
                 [
@@ -292,20 +264,14 @@ class Transformer(nn.Module):
                 ],
                 1,
             )
-            tokenized["input_ids"] = torch.stack(
-                [
-                    tokenized["input_ids"][i_elt]
-                    for i_elt in range(len(tokenized["input_ids"]))
-                    for _ in range(n_repeat)
-                ]
-            )
-            tokenized["attention_mask"] = torch.stack(
-                [
-                    tokenized["attention_mask"][i_elt]
-                    for i_elt in range(len(tokenized["attention_mask"]))
-                    for _ in range(n_repeat)
-                ]
-            )
+            tokenized["input_ids"] = torch.stack([
+                tokenized["input_ids"][i_elt] for i_elt in range(len(tokenized["input_ids"])) for _ in range(n_repeat)
+            ])
+            tokenized["attention_mask"] = torch.stack([
+                tokenized["attention_mask"][i_elt]
+                for i_elt in range(len(tokenized["attention_mask"]))
+                for _ in range(n_repeat)
+            ])
 
             # Concat on the sequence dimension
             src = torch.cat([src, text_memory_resized], dim=0)
@@ -314,25 +280,19 @@ class Transformer(nn.Module):
             if tpad_mask_t is not None:
                 tpad_mask_t_orig = tpad_mask_t
                 tpad_mask_t = tpad_mask_t.flatten(1)  # bxtxhxw -> bx(txhxw)
-                text_attn_mask_t = torch.stack(
-                    [
-                        text_attention_mask_orig[i_elt]
-                        for i_elt in range(len(text_attention_mask_orig))
-                        for _ in range(max(durations))
-                    ]
-                )
+                text_attn_mask_t = torch.stack([
+                    text_attention_mask_orig[i_elt]
+                    for i_elt in range(len(text_attention_mask_orig))
+                    for _ in range(max(durations))
+                ])
                 tpad_mask_t = torch.cat([tpad_mask_t, text_attn_mask_t], dim=1)
 
             # For mask, sequence dimension is second
             mask = torch.cat([mask, text_attention_mask], dim=1)
             # Pad the pos_embed with 0 so that the addition will be a no-op for the text tokens
-            pos_embed = torch.cat(
-                [pos_embed, torch.zeros_like(text_memory_resized)], dim=0
-            )
+            pos_embed = torch.cat([pos_embed, torch.zeros_like(text_memory_resized)], dim=0)
 
-            if (
-                self.fast_mode == "noslow"
-            ):  # no space-text attention for noslow baseline
+            if (self.fast_mode == "noslow"):  # no space-text attention for noslow baseline
                 img_memory, weights = src, None
                 text_memory = torch.stack(
                     [
@@ -343,42 +303,23 @@ class Transformer(nn.Module):
                     1,
                 )
             else:  # space-text attention
-                img_memory, weights = self.encoder(
-                    src, src_key_padding_mask=mask, pos=pos_embed, mask=None
-                )
-                text_memory = img_memory[-len(text_memory_resized) :]
+                img_memory, weights = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed, mask=None)
+                text_memory = img_memory[-len(text_memory_resized):]
 
             if self.fast:
-                if (
-                    self.fast_mode == "transformer"
-                ):  # temporal transformer in the fast branch for this variant
-                    fast_src2 = (
-                        fast_src.flatten(2)
-                        .view(b, t, f, h * w)
-                        .permute(1, 0, 3, 2)
-                        .flatten(1, 2)
-                    )  # (b*t)xfxhxw -> (b*t)xfx(h*w) -> bxtxfx(h*w) -> txbx(h*w)xf -> tx(b*h*w)xf
+                if (self.fast_mode == "transformer"):  # temporal transformer in the fast branch for this variant
+                    fast_src2 = (fast_src.flatten(2).view(b, t, f, h * w).permute(1, 0, 3, 2).flatten(1, 2)
+                                )  # (b*t)xfxhxw -> (b*t)xfx(h*w) -> bxtxfx(h*w) -> txbx(h*w)xf -> tx(b*h*w)xf
                     time_embed = self.time_embed(t)
                     time_embed = time_embed.repeat(1, b * h * w, 1)
-                    fast_memory, fast_weights = self.fast_encoder(
-                        fast_src2, pos=time_embed
-                    )
-                    fast_memory = (
-                        fast_memory.view(t, b, h * w, f)
-                        .transpose(0, 1)
-                        .view(b * t, h * w, f)
-                        .transpose(0, 1)
-                    )  # tx(b*h*w)xf -> txbx(h*w)xf -> bxtx(h*w)xf -> (b*t)x(h*w)xf -> (h*w)x(b*t)xf
+                    fast_memory, fast_weights = self.fast_encoder(fast_src2, pos=time_embed)
+                    fast_memory = (fast_memory.view(t, b, h * w, f).transpose(0, 1).view(b * t, h * w,
+                                                                                         f).transpose(0, 1)
+                                  )  # tx(b*h*w)xf -> txbx(h*w)xf -> bxtx(h*w)xf -> (b*t)x(h*w)xf -> (h*w)x(b*t)xf
                 else:
-                    fast_src2 = fast_src.flatten(2).permute(
-                        2, 0, 1
-                    )  # (b*t)xfxhxw -> (b*t)xfx(h*w) -> (h*w)x(b*t)xf
-                    if (
-                        self.fast_mode == "pool"
-                    ):  # spatial pool in the fast branch for this baseline
-                        fast_mask = tpad_mask_t_orig.flatten(1).transpose(
-                            0, 1
-                        )  # (h*w)x(b*t)
+                    fast_src2 = fast_src.flatten(2).permute(2, 0, 1)  # (b*t)xfxhxw -> (b*t)xfx(h*w) -> (h*w)x(b*t)xf
+                    if (self.fast_mode == "pool"):  # spatial pool in the fast branch for this baseline
+                        fast_mask = tpad_mask_t_orig.flatten(1).transpose(0, 1)  # (h*w)x(b*t)
                         fast_pool_mask = ~fast_mask[:, :, None]
                         sum_mask = fast_pool_mask.float().sum(dim=0).clamp(min=1)
                         fast_src2 = fast_src2 * fast_pool_mask
@@ -386,9 +327,7 @@ class Transformer(nn.Module):
                         fast_src2 = torch.div(fast_src2.sum(dim=0), sum_mask)
                     fast_memory = self.fast_encoder(fast_src2)
                     if self.fast_mode == "pool":
-                        fast_memory = fast_memory.unsqueeze(0).repeat(
-                            n_visual_tokens, 1, 1
-                        )
+                        fast_memory = fast_memory.unsqueeze(0).repeat(n_visual_tokens, 1, 1)
 
             if self.stride:  # temporal replication
                 device = img_memory.device
@@ -400,50 +339,28 @@ class Transformer(nn.Module):
                 for i_dur, dur in enumerate(durations):
                     for i_clip in range(n_clips):
                         clip_dur = min(self.stride, t - i_clip * self.stride)
-                        pad_img_memory[
-                            :,
-                            i_dur,
-                            i_clip * self.stride : i_clip * self.stride + clip_dur,
-                        ] = (
-                            img_memory[:, cur_clip].unsqueeze(1).repeat(1, clip_dur, 1)
-                        )
-                        pad_pos_embed[
-                            :,
-                            i_dur,
-                            i_clip * self.stride : i_clip * self.stride + clip_dur,
-                        ] = (
-                            pos_embed[:, cur_clip].unsqueeze(1).repeat(1, clip_dur, 1)
-                        )
+                        pad_img_memory[:, i_dur, i_clip * self.stride:i_clip * self.stride +
+                                       clip_dur,] = (img_memory[:, cur_clip].unsqueeze(1).repeat(1, clip_dur, 1))
+                        pad_pos_embed[:, i_dur, i_clip * self.stride:i_clip * self.stride +
+                                      clip_dur,] = (pos_embed[:, cur_clip].unsqueeze(1).repeat(1, clip_dur, 1))
                         cur_clip += 1
-                img_memory = pad_img_memory.view(
-                    n_tokens, b * t, f
-                )  # n_tokensxbxtxf -> n_tokensx(b*t)xf
-                mask = tpad_mask_t.view(
-                    b * t, n_tokens
-                )  # bxtxn_tokens -> (b*t)xn_tokens
+                img_memory = pad_img_memory.view(n_tokens, b * t, f)  # n_tokensxbxtxf -> n_tokensx(b*t)xf
+                mask = tpad_mask_t.view(b * t, n_tokens)  # bxtxn_tokens -> (b*t)xn_tokens
                 mask[:, 0] = False  # avoid empty masks
-                pos_embed = pad_pos_embed.view(
-                    n_tokens, b * t, f
-                )  # n_tokensxbxtxf -> n_tokensx(b*t)xf
+                pos_embed = pad_pos_embed.view(n_tokens, b * t, f)  # n_tokensxbxtxf -> n_tokensx(b*t)xf
 
                 if self.fast:  # aggregate slow and fast features
                     n_visual_tokens = len(fast_memory)
                     if self.fast_mode == "noslow":
                         img_memory = torch.cat([fast_memory, text_memory], 0)
                     elif self.fast_mode == "gating":
-                        img_memory2 = img_memory[
-                            :n_visual_tokens
-                        ].clone() * torch.sigmoid(fast_memory)
-                        img_memory[:n_visual_tokens] = (
-                            img_memory[:n_visual_tokens] + img_memory2
-                        )
+                        img_memory2 = img_memory[:n_visual_tokens].clone() * torch.sigmoid(fast_memory)
+                        img_memory[:n_visual_tokens] = (img_memory[:n_visual_tokens] + img_memory2)
                     else:
                         img_memory2 = img_memory[:n_visual_tokens] + fast_memory
                         img_memory2 = self.fast_residual(img_memory2)
-                        img_memory[:n_visual_tokens] = (
-                            img_memory[:n_visual_tokens] + img_memory2
-                        )
-                text_memory = img_memory[-len(text_memory_resized) :]
+                        img_memory[:n_visual_tokens] = (img_memory[:n_visual_tokens] + img_memory2)
+                text_memory = img_memory[-len(text_memory_resized):]
 
             memory_cache = {
                 "text_memory_resized": text_memory_resized,  # seq first
@@ -492,6 +409,7 @@ class Transformer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
+
     def __init__(self, encoder_layer, num_layers, norm=None, return_weights=False):
         super().__init__()
         self.layers = _get_clones(encoder_layer, num_layers)
@@ -530,6 +448,7 @@ class TransformerEncoder(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
+
     def __init__(
         self,
         decoder_layer,
@@ -606,9 +525,8 @@ class TransformerDecoder(nn.Module):
 
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(
-        self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"
-    ):
+
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
@@ -635,9 +553,7 @@ class TransformerEncoderLayer(nn.Module):
     ):
 
         q = k = self.with_pos_embed(src, pos)
-        src2, weights = self.self_attn(
-            q, k, value=src, attn_mask=src_mask, key_padding_mask=src_key_padding_mask
-        )
+        src2, weights = self.self_attn(q, k, value=src, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
@@ -647,6 +563,7 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerDecoderLayer(nn.Module):
+
     def __init__(
         self,
         d_model,
@@ -724,12 +641,11 @@ class TransformerDecoderLayer(nn.Module):
         # Time Aligned Cross attention
         t, b, _ = tgt.shape
         n_tokens, bs, f = memory.shape
-        tgt_cross = (
-            tgt.transpose(0, 1).reshape(bs, -1, f).transpose(0, 1)
-        )  # txbxf -> bxtxf -> (b*t)x1xf -> 1x(b*t)xf
-        query_pos_cross = (
-            query_pos.transpose(0, 1).reshape(bs, -1, f).transpose(0, 1)
-        )  # txbxf -> bxtxf -> (b*t)x1xf -> 1x(b*t)xf
+        tgt_cross = (tgt.transpose(0, 1).reshape(bs, -1, f).transpose(0, 1))  # txbxf -> bxtxf -> (b*t)x1xf -> 1x(b*t)xf
+        query_pos_cross = (query_pos.transpose(0,
+                                               1).reshape(bs, -1,
+                                                          f).transpose(0,
+                                                                       1))  # txbxf -> bxtxf -> (b*t)x1xf -> 1x(b*t)xf
 
         tgt2, cross_weights = self.cross_attn_image(
             query=self.with_pos_embed(tgt_cross, query_pos_cross),

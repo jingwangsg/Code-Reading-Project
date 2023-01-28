@@ -27,9 +27,7 @@ class MLP(nn.Module):
         super().__init__()
         self.num_layers = num_layers
         h = [hidden_dim] * (num_layers - 1)
-        self.layers = nn.ModuleList(
-            nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim])
-        )
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
         self.dropout = dropout
         if dropout:
             self.dropout = nn.Dropout(dropout)
@@ -118,12 +116,9 @@ class TubeDETR(nn.Module):
             assert memory_cache is None
             b = len(durations)
             t = max(durations)
-            features, pos = self.backbone(
-                samples
-            )  # each frame from each video is forwarded through the backbone
-            src, mask = features[
-                -1
-            ].decompose()  # src (n_frames)xFx(math.ceil(H/32))x(math.ceil(W/32)); mask (n_frames)x(math.ceil(H/32))x(math.ceil(W/32))
+            features, pos = self.backbone(samples)  # each frame from each video is forwarded through the backbone
+            src, mask = features[-1].decompose(
+            )  # src (n_frames)xFx(math.ceil(H/32))x(math.ceil(W/32)); mask (n_frames)x(math.ceil(H/32))x(math.ceil(W/32))
             if self.fast:
                 with torch.no_grad():  # fast branch does not backpropagate to the visual backbone
                     features_fast, pos_fast = self.backbone(samples_fast)
@@ -143,9 +138,9 @@ class TubeDETR(nn.Module):
                 pos_embed = torch.zeros(b, t, f2, h, w).to(device)
                 cur_dur = 0
                 for i_dur, dur in enumerate(durations):
-                    tpad_src[i_dur, :dur] = src[cur_dur : cur_dur + dur]
-                    tpad_mask[i_dur, :dur] = mask[cur_dur : cur_dur + dur]
-                    pos_embed[i_dur, :dur] = pos[-1][cur_dur : cur_dur + dur]
+                    tpad_src[i_dur, :dur] = src[cur_dur:cur_dur + dur]
+                    tpad_mask[i_dur, :dur] = mask[cur_dur:cur_dur + dur]
+                    pos_embed[i_dur, :dur] = pos[-1][cur_dur:cur_dur + dur]
                     cur_dur += dur
                 tpad_src = tpad_src.view(b * t, f, h, w)
                 tpad_mask = tpad_mask.view(b * t, h, w)
@@ -158,22 +153,20 @@ class TubeDETR(nn.Module):
                 pos_embed = pos[-1]
                 if self.fast:
                     fast_src = torch.zeros(b, t, f, h, w).to(device)
-                tpad_mask_t = (
-                    torch.ones(b, t, h, w).bool().to(device)
-                )  # temporally padded mask for all frames, will be used for the decoding
+                tpad_mask_t = (torch.ones(b, t, h, w).bool().to(device)
+                              )  # temporally padded mask for all frames, will be used for the decoding
                 cum_dur = 0  # updated for every video
                 cur_dur = 0
                 cur_clip = 0
                 for i_dur, dur in enumerate(durations):
                     if self.fast:
-                        fast_src[i_dur, :dur] = src_fast[cum_dur : cum_dur + dur]
-                        tpad_mask_t[i_dur, :dur] = mask_fast[cum_dur : cum_dur + dur]
+                        fast_src[i_dur, :dur] = src_fast[cum_dur:cum_dur + dur]
+                        tpad_mask_t[i_dur, :dur] = mask_fast[cum_dur:cum_dur + dur]
                     else:
                         for i_clip in range(math.ceil(dur / self.stride)):
                             clip_dur = min(self.stride, dur - i_clip * self.stride)
-                            tpad_mask_t[
-                                i_dur, cur_dur - cum_dur : cur_dur - cum_dur + clip_dur
-                            ] = mask[cur_clip : cur_clip + 1].repeat(clip_dur, 1, 1)
+                            tpad_mask_t[i_dur, cur_dur - cum_dur:cur_dur - cum_dur +
+                                        clip_dur] = mask[cur_clip:cur_clip + 1].repeat(clip_dur, 1, 1)
                             cur_dur += clip_dur
                             cur_clip += 1
                     cum_dur += dur
@@ -205,12 +198,8 @@ class TubeDETR(nn.Module):
             assert memory_cache is not None
             # space-time decoder
             hs = self.transformer(
-                img_memory=memory_cache[
-                    "img_memory"
-                ],  # (math.ceil(H/32)*math.ceil(W/32) + n_tokens)x(BT)xF
-                mask=memory_cache[
-                    "mask"
-                ],  # (BT)x(math.ceil(H/32)*math.ceil(W/32) + n_tokens)
+                img_memory=memory_cache["img_memory"],  # (math.ceil(H/32)*math.ceil(W/32) + n_tokens)x(BT)xF
+                mask=memory_cache["mask"],  # (BT)x(math.ceil(H/32)*math.ceil(W/32) + n_tokens)
                 pos_embed=memory_cache["pos_embed"],  # n_tokensx(BT)xF
                 query_embed=memory_cache["query_embed"],  # (num_queries)x(BT)xF
                 query_mask=memory_cache["query_mask"],  # Bx(Txnum_queries)
@@ -226,7 +215,7 @@ class TubeDETR(nn.Module):
             if self.sted:
                 outputs_sted = self.sted_embed(hs)
 
-            hs = hs.flatten(1, 2)  # n_layersxbxtxf -> n_layersx(b*t)xf
+            hs = hs.flatten(1, 2)  # n_layersxbxtxf -> n_layers x (b*t) x f
 
             outputs_coord = self.bbox_embed(hs).sigmoid()
             out.update({"pred_boxes": outputs_coord[-1]})
@@ -238,12 +227,9 @@ class TubeDETR(nn.Module):
 
             # auxiliary outputs
             if self.aux_loss:
-                out["aux_outputs"] = [
-                    {
-                        "pred_boxes": b,
-                    }
-                    for b in outputs_coord[:-1]
-                ]
+                out["aux_outputs"] = [{
+                    "pred_boxes": b,
+                } for b in outputs_coord[:-1]]
                 for i_aux in range(len(out["aux_outputs"])):
                     if self.sted:
                         out["aux_outputs"][i_aux]["pred_sted"] = outputs_sted[i_aux]
@@ -284,8 +270,7 @@ class SetCriterion(nn.Module):
             box_ops.generalized_box_iou(
                 box_ops.box_cxcywh_to_xyxy(src_boxes),
                 box_ops.box_cxcywh_to_xyxy(target_boxes),
-            )
-        )
+            ))
         losses["loss_giou"] = loss_giou.sum() / max(num_boxes, 1)
         return losses
 
@@ -297,50 +282,25 @@ class SetCriterion(nn.Module):
         sted = outputs["pred_sted"]
         losses = {}
 
-        target_start = torch.tensor([x[0] for x in inter_idx], dtype=torch.long).to(
-            sted.device
-        )
-        target_end = torch.tensor([x[1] for x in inter_idx], dtype=torch.long).to(
-            sted.device
-        )
-        sted = sted.masked_fill(
-            ~time_mask[:, :, None], -1e32
-        )  # put very low probability on the padded positions before softmax
+        target_start = torch.tensor([x[0] for x in inter_idx], dtype=torch.long).to(sted.device)
+        target_end = torch.tensor([x[1] for x in inter_idx], dtype=torch.long).to(sted.device)
+        sted = sted.masked_fill(~time_mask[:, :, None],
+                                -1e32)  # put very low probability on the padded positions before softmax
         eps = 1e-6  # avoid log(0) and division by 0
 
         sigma = self.sigma
-        start_distrib = (
-            -(
-                (
-                    torch.arange(sted.shape[1])[None, :].to(sted.device)
-                    - target_start[:, None]
-                )
-                ** 2
-            )
-            / (2 * sigma ** 2)
-        ).exp()  # gaussian target
+        start_distrib = (-((torch.arange(sted.shape[1])[None, :].to(sted.device) - target_start[:, None])**2) /
+                         (2 * sigma**2)).exp()  # gaussian target
         start_distrib = F.normalize(start_distrib + eps, p=1, dim=1)
         pred_start_prob = (sted[:, :, 0]).softmax(1)
-        loss_start = (
-            pred_start_prob * ((pred_start_prob + eps) / start_distrib).log()
-        )  # KL div loss
+        loss_start = (pred_start_prob * ((pred_start_prob + eps) / start_distrib).log())  # KL div loss
         loss_start = loss_start * time_mask  # not count padded values in the loss
 
-        end_distrib = (
-            -(
-                (
-                    torch.arange(sted.shape[1])[None, :].to(sted.device)
-                    - target_end[:, None]
-                )
-                ** 2
-            )
-            / (2 * sigma ** 2)
-        ).exp()  # gaussian target
+        end_distrib = (-((torch.arange(sted.shape[1])[None, :].to(sted.device) - target_end[:, None])**2) /
+                       (2 * sigma**2)).exp()  # gaussian target
         end_distrib = F.normalize(end_distrib + eps, p=1, dim=1)
         pred_end_prob = (sted[:, :, 1]).softmax(1)
-        loss_end = (
-            pred_end_prob * ((pred_end_prob + eps) / end_distrib).log()
-        )  # KL div loss
+        loss_end = (pred_end_prob * ((pred_end_prob + eps) / end_distrib).log())  # KL div loss
         loss_end = loss_end * time_mask  # do not count padded values in the loss
 
         loss_sted = loss_start + loss_end
@@ -348,17 +308,13 @@ class SetCriterion(nn.Module):
 
         return losses
 
-    def loss_guided_attn(
-        self, outputs, num_boxes, inter_idx, positive_map, time_mask=None
-    ):
+    def loss_guided_attn(self, outputs, num_boxes, inter_idx, positive_map, time_mask=None):
         """Compute guided attention loss
         targets dicts must contain the key "weights" containing a tensor of attention matrices of dim [B, T, T]
         """
         weights = outputs["weights"]  # BxTxT
 
-        positive_map = positive_map + (
-            ~time_mask
-        )  # the padded positions also have to be taken out
+        positive_map = positive_map + (~time_mask)  # the padded positions also have to be taken out
         eps = 1e-6  # avoid log(0) and division by 0
 
         loss = -(1 - weights + eps).log()
@@ -389,9 +345,7 @@ class SetCriterion(nn.Module):
         }
         assert loss in loss_map, f"do you really want to compute {loss} loss?"
         if loss in ["sted", "guided_attn"]:
-            return loss_map[loss](
-                outputs, num_boxes, inter_idx, positive_map, time_mask, **kwargs
-            )
+            return loss_map[loss](outputs, num_boxes, inter_idx, positive_map, time_mask, **kwargs)
         return loss_map[loss](outputs, targets, num_boxes, **kwargs)
 
     def forward(self, outputs, targets, inter_idx=None, time_mask=None):
@@ -405,9 +359,7 @@ class SetCriterion(nn.Module):
         """
         # Compute the average number of target boxes accross all nodes, for normalization purposes
         num_boxes = sum(len(t["boxes"]) for t in targets)
-        num_boxes = torch.as_tensor(
-            [num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device
-        )
+        num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
         if dist.is_dist_avail_and_initialized():
             torch.distributed.all_reduce(num_boxes)
         num_boxes = torch.clamp(num_boxes / dist.get_world_size(), min=1).item()
@@ -418,26 +370,25 @@ class SetCriterion(nn.Module):
             for k, idx in enumerate(inter_idx):
                 if idx[0] < 0:  # empty intersection
                     continue
-                positive_map[k][idx[0] : idx[1] + 1].fill_(True)
+                positive_map[k][idx[0]:idx[1] + 1].fill_(True)
 
             positive_map = positive_map.to(time_mask.device)
         elif time_mask is None:
             positive_map = None
+        #* positive_map: [B, T], positive[b, t] = True if st[b] <= t <= ed[b]
 
         # Compute all the requested losses
         losses = {}
         for loss in self.losses:
-            losses.update(
-                self.get_loss(
-                    loss,
-                    outputs,
-                    targets,
-                    num_boxes,
-                    inter_idx,
-                    positive_map,
-                    time_mask,
-                )
-            )
+            losses.update(self.get_loss(
+                loss,
+                outputs,
+                targets,
+                num_boxes,
+                inter_idx,
+                positive_map,
+                time_mask,
+            ))
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if "aux_outputs" in outputs:
