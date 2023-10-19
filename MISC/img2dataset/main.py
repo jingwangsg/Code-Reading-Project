@@ -138,14 +138,17 @@ def download(
     save_caption = caption_col is not None
 
     fs, output_path = fsspec.core.url_to_fs(output_folder)
-
+    
     if not fs.exists(output_path):
+        # shard文件夹不存在，说明未下载
         fs.mkdir(output_path)
         done_shards = set()
     else:
         if incremental_mode == "incremental":
+            # 统计done_shards，有json文件的shard文件夹认为已下载
             done_shards = set(int(x.split("/")[-1].split("_")[0]) for x in fs.glob(output_path + "/*.json"))
         elif incremental_mode == "overwrite":
+            # 删除已下载的shard文件夹，并重置done_shards
             fs.rm(output_path, recursive=True)
             fs.mkdir(output_path)
             done_shards = set()

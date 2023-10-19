@@ -94,51 +94,40 @@ class SpeedLogger(Logger):
         self.failed_to_resize = 0
         self.enable_wandb = enable_wandb
 
-    def __call__(
-        self, count, success, failed_to_download, failed_to_resize, start_time, end_time
-    ):  # pylint: disable=arguments-differ
+    def __call__(self, count, success, failed_to_download, failed_to_resize, start_time, end_time):  # pylint: disable=arguments-differ
         self.count += count
         self.success += success
         self.failed_to_download += failed_to_download
         self.failed_to_resize += failed_to_resize
         self.start_time = min(start_time, self.start_time)
         self.end_time = max(end_time, self.end_time)
-        super().__call__(
-            self.count, self.success, self.failed_to_download, self.failed_to_resize, self.start_time, self.end_time
-        )
+        super().__call__(self.count, self.success, self.failed_to_download, self.failed_to_resize, self.start_time,
+                         self.end_time)
 
-    def do_log(
-        self, count, success, failed_to_download, failed_to_resize, start_time, end_time
-    ):  # pylint: disable=arguments-differ
+    def do_log(self, count, success, failed_to_download, failed_to_resize, start_time, end_time):  # pylint: disable=arguments-differ
         duration = end_time - start_time
         img_per_sec = count / duration
         success_ratio = 1.0 * success / count
         failed_to_download_ratio = 1.0 * failed_to_download / count
         failed_to_resize_ratio = 1.0 * failed_to_resize / count
 
-        print(
-            " - ".join(
-                [
-                    f"{self.prefix:<7}",
-                    f"success: {success_ratio:.3f}",
-                    f"failed to download: {failed_to_download_ratio:.3f}",
-                    f"failed to resize: {failed_to_resize_ratio:.3f}",
-                    f"images per sec: {img_per_sec:.0f}",
-                    f"count: {count}",
-                ]
-            )
-        )
+        print(" - ".join([
+            f"{self.prefix:<7}",
+            f"success: {success_ratio:.3f}",
+            f"failed to download: {failed_to_download_ratio:.3f}",
+            f"failed to resize: {failed_to_resize_ratio:.3f}",
+            f"images per sec: {img_per_sec:.0f}",
+            f"count: {count}",
+        ]))
 
         if self.enable_wandb:
-            wandb.log(
-                {
-                    f"{self.prefix}/img_per_sec": img_per_sec,
-                    f"{self.prefix}/success": success_ratio,
-                    f"{self.prefix}/failed_to_download": failed_to_download_ratio,
-                    f"{self.prefix}/failed_to_resize": failed_to_resize_ratio,
-                    f"{self.prefix}/count": count,
-                }
-            )
+            wandb.log({
+                f"{self.prefix}/img_per_sec": img_per_sec,
+                f"{self.prefix}/success": success_ratio,
+                f"{self.prefix}/failed_to_download": failed_to_download_ratio,
+                f"{self.prefix}/failed_to_resize": failed_to_resize_ratio,
+                f"{self.prefix}/count": count,
+            })
 
 
 class StatusTableLogger(Logger):
@@ -184,8 +173,7 @@ def write_stats(
     }
     fs, output_path = fsspec.core.url_to_fs(output_folder)
     shard_name = "{shard_id:0{oom_shard_count}d}".format(  # pylint: disable=consider-using-f-string
-        shard_id=shard_id, oom_shard_count=oom_shard_count
-    )
+        shard_id=shard_id, oom_shard_count=oom_shard_count)
     json_file = f"{output_path}/{shard_name}_stats.json"
     with fs.open(json_file, "w") as f:
         json.dump(stats, f, indent=4)
@@ -223,11 +211,16 @@ class LoggerProcess(multiprocessing.context.SpawnProcess):
         total_status_dict = CappedCounter()
         while True:
             time.sleep(0.1)
+
             try:
+                # 用来接收stop信号
                 self.q.get(False)
                 last_one = True
             except queue.Empty as _:
                 last_one = False
+
+            # 只有 没有收到stop信号 或 离上一次检查时间 > 预设间隔，才会执行之后的语句
+            # 否则空跑while循环
             if not last_one and time.perf_counter() - last_check < self.log_interval:
                 continue
 
@@ -238,14 +231,14 @@ class LoggerProcess(multiprocessing.context.SpawnProcess):
                 # filter out files that have an id smaller that are already done
                 stats_files = [f for f in stats_files if int(f.split("/")[-1].split("_")[0]) not in self.done_shards]
 
-                # get new stats files
+                # 比较获得新增的stats文件名
                 new_stats_files = set(stats_files) - self.stats_files
                 if len(new_stats_files) == 0:
                     if last_one:
                         self.finish()
                         return
 
-                # read new stats files
+                # 读取新增的文件
                 for stats_file in new_stats_files:
                     with fs.open(stats_file, "r") as f:
                         try:

@@ -10,6 +10,7 @@ from tqdm import tqdm
 def retrier(runf, failed_shards, max_shard_retry):
     # retry failed shards max_shard_retry times
     for i in range(max_shard_retry):
+        # 重试直到 达到最大次数 或 failed_shards为空
         if len(failed_shards) == 0:
             break
         print(f"Retrying {len(failed_shards)} shards, try {i+1}")
