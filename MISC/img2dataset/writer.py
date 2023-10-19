@@ -13,17 +13,26 @@ import webdataset as wds
 class BufferedParquetWriter:
     """Write samples to parquet files incrementally with a buffer"""
 
+    # ======================== Note ========================
+    # * 目的是为了防止对parquet文件的频繁写入造成的性能损耗
+    #
+    # * buffer用于缓存写入parquet的内容
+    # * flush() - 将buffer中的内容写入parquet文件
+    # * write() - 将sample添加到buffer中
+    # ======================================================
+
     def __init__(self, output_file, schema, buffer_size=100):
         self.buffer_size = buffer_size
         self.schema = schema
         self._initiatlize_buffer()
         fs, output_path = fsspec.core.url_to_fs(output_file)
+        # 返回一个文件系统实例以及源文件的路径, 支持local, s3, hdfs, gcs等
         self.output_fd = fs.open(output_path, "wb")
         self.parquet_writer = pq.ParquetWriter(self.output_fd, schema)
 
     def _initiatlize_buffer(self):
         self.current_buffer_size = 0
-        self.buffer = {k: [] for k in self.schema.names}
+        self.buffer = {k: [] for k in self.schema.names}  # 初始化buffer
 
     def _add_sample_to_buffer(self, sample):
         for k in self.schema.names:
@@ -36,7 +45,7 @@ class BufferedParquetWriter:
         self._add_sample_to_buffer(sample)
 
     def flush(self):
-        """Write the buffer to disk"""
+        # 写入当前buffer内的所有内容至parquet文件
         if self.current_buffer_size == 0:
             return
 
@@ -68,8 +77,7 @@ class ParquetSampleWriter:
         self.encode_format = encode_format
         schema = schema.append(pa.field(encode_format, pa.binary()))
         shard_name = "{shard_id:0{oom_shard_count}d}".format(  # pylint: disable=consider-using-f-string
-            shard_id=shard_id, oom_shard_count=oom_shard_count
-        )
+            shard_id=shard_id, oom_shard_count=oom_shard_count)
         output_file = f"{output_folder}/{shard_name}.parquet"
         self.buffered_parquet_writer = BufferedParquetWriter(output_file, schema, 100)
         self.save_caption = save_caption
@@ -105,8 +113,7 @@ class WebDatasetSampleWriter:
     ):
         self.oom_shard_count = oom_shard_count
         shard_name = "{shard_id:0{oom_shard_count}d}".format(  # pylint: disable=consider-using-f-string
-            shard_id=shard_id, oom_shard_count=oom_shard_count
-        )
+            shard_id=shard_id, oom_shard_count=oom_shard_count)
         self.shard_id = shard_id
         fs, output_path = fsspec.core.url_to_fs(output_folder)
         self.tar_fd = fs.open(f"{output_path}/{shard_name}.tar", "wb")
@@ -118,7 +125,10 @@ class WebDatasetSampleWriter:
     def write(self, img_str, key, caption, meta):
         """write sample to tars"""
         if img_str is not None:
+            # 图片的内容
             sample = {"__key__": key, self.encode_format: img_str}
+
+            # caption的内容
             if self.save_caption:
                 sample["txt"] = str(caption) if caption is not None else ""
             # some meta data may not be JSON serializable
@@ -126,7 +136,11 @@ class WebDatasetSampleWriter:
                 if isinstance(v, np.ndarray):
                     meta[k] = v.tolist()
             sample["json"] = json.dumps(meta, indent=4)
+
+            # 写入tarwriter
             self.tarwriter.write(sample)
+
+        # 对于每一个shard, 都会有一个对应的parquet文件，记录了该shard中所有sample的meta信息
         self.buffered_parquet_writer.write(meta)
 
     def close(self):
@@ -152,12 +166,7 @@ class TFRecordSampleWriter:
             import tensorflow_io as _  # pylint: disable=import-outside-toplevel
             from tensorflow.python.lib.io.tf_record import TFRecordWriter  # pylint: disable=import-outside-toplevel
             from tensorflow.python.training.training import (  # pylint: disable=import-outside-toplevel
-                BytesList,
-                Example,
-                Feature,
-                Features,
-                FloatList,
-                Int64List,
+                BytesList, Example, Feature, Features, FloatList, Int64List,
             )
 
             self._BytesList = BytesList  # pylint: disable=invalid-name
@@ -167,15 +176,12 @@ class TFRecordSampleWriter:
             self._Features = Features  # pylint: disable=invalid-name
             self._Feature = Feature  # pylint: disable=invalid-name
         except ImportError as e:
-            raise ModuleNotFoundError(
-                "tfrecords require tensorflow and tensorflow_io to be installed."
-                "Run `pip install tensorflow tensorflow_io`."
-            ) from e
+            raise ModuleNotFoundError("tfrecords require tensorflow and tensorflow_io to be installed."
+                                      "Run `pip install tensorflow tensorflow_io`.") from e
 
         self.oom_shard_count = oom_shard_count
         shard_name = "{shard_id:0{oom_shard_count}d}".format(  # pylint: disable=consider-using-f-string
-            shard_id=shard_id, oom_shard_count=oom_shard_count
-        )
+            shard_id=shard_id, oom_shard_count=oom_shard_count)
         self.shard_id = shard_id
         self.tf_writer = TFRecordWriter(f"{output_folder}/{shard_name}.tfrecord")
         self.save_caption = save_caption
@@ -257,29 +263,35 @@ class FilesSampleWriter:
     ):
         self.oom_shard_count = oom_shard_count
         shard_name = "{shard_id:0{oom_shard_count}d}".format(  # pylint: disable=consider-using-f-string
-            shard_id=shard_id, oom_shard_count=oom_shard_count
-        )
+            shard_id=shard_id, oom_shard_count=oom_shard_count)
         self.shard_id = shard_id
         self.fs, self.subfolder = fsspec.core.url_to_fs(f"{output_folder}/{shard_name}")
         if not self.fs.exists(self.subfolder):
             self.fs.mkdir(self.subfolder)
         self.save_caption = save_caption
         self.buffered_parquet_writer = BufferedParquetWriter(output_folder + "/" + shard_name + ".parquet", schema, 100)
+        # 借用了BufferedParquetWriter以实现对parquet文件的增量写入
         self.encode_format = encode_format
 
     def write(self, img_str, key, caption, meta):
         """Write sample to disk"""
         if img_str is not None:
+            # self.subfolder - 对应的shard folder
+
+            # 将图片存储在shard folder下,以key.{ext}为文件名
             filename = f"{self.subfolder}/{key}.{self.encode_format}"
             with self.fs.open(filename, "wb") as f:
                 f.write(img_str)
+
             if self.save_caption:
+                # 将caption存储在shard folder下的txt文件中
                 caption = str(caption) if caption is not None else ""
                 caption_filename = f"{self.subfolder}/{key}.txt"
                 with self.fs.open(caption_filename, "w") as f:
                     f.write(str(caption))
 
             # some meta data may not be JSON serializable
+            # 将meta信息存到shard folder下的json文件中
             for k, v in meta.items():
                 if isinstance(v, np.ndarray):
                     meta[k] = v.tolist()
@@ -287,6 +299,7 @@ class FilesSampleWriter:
             meta_filename = f"{self.subfolder}/{key}.json"
             with self.fs.open(meta_filename, "w") as f:
                 f.write(j)
+
         self.buffered_parquet_writer.write(meta)
 
     def close(self):

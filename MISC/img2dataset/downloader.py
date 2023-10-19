@@ -196,7 +196,7 @@ class Downloader:
         del df
         # ===========================================================
 
-        status_dict = CappedCounter()
+        status_dict = CappedCounter()  # 用于记录最常见的错误或status
 
         count = len(shard_to_dl)
         successes = 0
@@ -256,6 +256,7 @@ class Downloader:
                     loader,
             ):
                 try:
+                    # ======================== Construct Meta Info ========================
                     _, sample_data = shard_to_dl[key]
                     str_key = compute_key(key, shard_id, oom_sample_per_shard, self.oom_shard_count)
                     meta = {
@@ -276,41 +277,46 @@ class Downloader:
 
                     if self.compute_hash is not None:
                         meta[self.compute_hash] = None
+                    # ======================================================
 
-                    if error_message is not None:
-                        failed_to_download += 1
-                        status = "failed_to_download"
-                        status_dict.increment(error_message)
-                        meta["status"] = status
-                        sample_writer.write(
-                            None,
-                            str_key,
-                            sample_data[caption_indice] if caption_indice is not None else None,
-                            meta,
-                        )
-                        semaphore.release()
-                        continue
-
-                    if hash_indice is not None:
-                        img_stream.seek(0)
-                        test_hash = getattr(hashlib, self.verify_hash_type)(img_stream.read()).hexdigest()
-                        if test_hash != sample_data[hash_indice]:
+                    # ========================处理下载异常========================
+                    if True:
+                        if error_message is not None:
                             failed_to_download += 1
                             status = "failed_to_download"
-                            status_dict.increment("hash mismatch")
+                            status_dict.increment(error_message)
                             meta["status"] = status
-                            meta["error_message"] = "hash mismatch"
                             sample_writer.write(
                                 None,
                                 str_key,
                                 sample_data[caption_indice] if caption_indice is not None else None,
                                 meta,
                             )
-                            img_stream.close()
-                            del img_stream
                             semaphore.release()
                             continue
 
+                        if hash_indice is not None:
+                            img_stream.seek(0)
+                            test_hash = getattr(hashlib, self.verify_hash_type)(img_stream.read()).hexdigest()
+                            if test_hash != sample_data[hash_indice]:
+                                failed_to_download += 1
+                                status = "failed_to_download"
+                                status_dict.increment("hash mismatch")
+                                meta["status"] = status
+                                meta["error_message"] = "hash mismatch"
+                                sample_writer.write(
+                                    None,
+                                    str_key,
+                                    sample_data[caption_indice] if caption_indice is not None else None,
+                                    meta,
+                                )
+                                img_stream.close()
+                                del img_stream
+                                semaphore.release()
+                                continue
+                    # ======================================================
+
+                    # ======================== Resize ========================
                     img_stream.seek(0)
                     bbox_list = sample_data[bbox_indice] if bbox_indice is not None else None
                     (
@@ -321,6 +327,9 @@ class Downloader:
                         original_height,
                         error_message,
                     ) = self.resizer(img_stream, bbox_list)
+                    # ======================================================
+
+                    # ======================== 处理Resize异常 ========================
                     if error_message is not None:
                         failed_to_resize += 1
                         status = "failed_to_resize"
@@ -340,7 +349,9 @@ class Downloader:
                     successes += 1
                     status = "success"
                     status_dict.increment(status)
+                    # ======================================================
 
+                    # 提取exif
                     if self.extract_exif:
                         try:
                             img_stream.seek(0)
@@ -353,6 +364,8 @@ class Downloader:
                             exif = None
                         meta["exif"] = exif
 
+                    # 计算hash
+                    # self.compute_hash是要计算的hash的类型，如md5, sha1, sha256等
                     if self.compute_hash is not None:
                         img_stream.seek(0)
                         meta[self.compute_hash] = getattr(hashlib, self.compute_hash)(img_stream.read()).hexdigest()
@@ -372,6 +385,7 @@ class Downloader:
                         meta,
                     )
                 except Exception as err:  # pylint: disable=broad-except
+                    # 如果有内层无法处理的异常，就会到这里
                     traceback.print_exc()
                     print(f"Sample {key} failed to download: {err}")
                 semaphore.release()
@@ -382,6 +396,7 @@ class Downloader:
             del thread_pool
 
         end_time = time.time()
+        # 记录整个shard的统计信息到json
         write_stats(
             self.output_folder,
             shard_id,
