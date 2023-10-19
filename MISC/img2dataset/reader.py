@@ -77,6 +77,9 @@ class Reader:
 
     def _save_to_arrow(self, input_file, start_shard_id):
         """Read the input file and save to arrow files in a temporary directory"""
+        # ======================== 读取input_file ========================
+        # * 读取的文件基本都是表格形式
+
         if self.input_format in [
                 "txt",
                 "txt.gz",
@@ -94,6 +97,7 @@ class Reader:
                 compression = "gzip"
             with self.fs.open(input_file, encoding="utf-8", mode="rb", compression=compression) as file:
                 if self.input_format in ["txt", "txt.gz"]:
+                    # 手动添加url列名
                     df = csv_pa.read_csv(file, read_options=csv_pa.ReadOptions(column_names=["url"]))
                 elif self.input_format in ["json", "json.gz"]:
                     df = pa.Table.from_pandas(pd.read_json(file))
@@ -117,6 +121,11 @@ class Reader:
                 df = pq.read_table(file, columns=columns_to_read)
         else:
             raise ValueError(f"Unknown input format {self.input_format}")
+        # ======================================================
+
+        # ======================== 重命名列名 ========================
+        # * self.caption_col => "caption"
+        # * self.verify_hash_col => self.verify_hash_type
 
         column_names = df.column_names
         if self.caption_col is not None:
@@ -128,9 +137,9 @@ class Reader:
         column_names = [c if c != self.url_col else "url" for c in column_names]
 
         df = df.rename_columns(column_names)
+        # ======================================================
 
         number_samples = df.num_rows
-
         number_shards = math.ceil(df.num_rows / self.number_sample_per_shard)
         shards_to_write = [(start_shard_id + shard_id, shard_id)
                            for shard_id in range(number_shards)
@@ -142,12 +151,17 @@ class Reader:
             full_shard_id, shard_id = t
             begin_shard = shard_id * self.number_sample_per_shard
             end_shard = min(number_samples, (1 + shard_id) * self.number_sample_per_shard)
+
+            # 从df(from input_file)中选择shard对应的行和列
             df_shard = df.slice(begin_shard, end_shard - begin_shard).select(self.column_list)
+
+            # 建立shard对应的临时文件
             tmp_file = self.tmp_path + f"/{full_shard_id}.feather"
             for i in range(10):
                 try:
                     fs, tmp_path = fsspec.core.url_to_fs(tmp_file)
                     with fs.open(tmp_path, "wb") as file:
+                        # 将df中shard对应的行列写入feather
                         with pa.ipc.new_file(file, df_shard.schema) as writer:
                             writer.write_table(df_shard)
                     return (full_shard_id, tmp_file)
@@ -157,8 +171,9 @@ class Reader:
                         time.sleep(1)
                     else:
                         raise e
-            # can't reach here
-            raise Exception("Failed to write to file.")
+
+        # ======================== 构造shards，并写入shard信息 ========================
+        # * 为了加快write_shard，使用线程池
 
         for i in range(10):
             shards = []
@@ -174,7 +189,9 @@ class Reader:
                     time.sleep(2 * i)
                 else:
                     raise e
+        # ======================================================
 
+        # 重排thread_pool.imap_unordered的输出
         shards.sort(key=lambda k: k[0])
 
         del df
@@ -188,10 +205,11 @@ class Reader:
         shard is a tuple (sample id, sample)
         sample is a tuple of the columns
         """
-        start_shard_id = 0
+        start_shard_id = 0  # 存在多个input_files时的shard_id的offset
         for i, input_file in enumerate(self.input_files):
             print("Sharding file number " + str(i + 1) + " of " + str(len(self.input_files)) + " called " + input_file)
 
+            # 构造shards列表，同时将各个shard对应的临时文件写入input_file对应行列
             shards, number_shards = self._save_to_arrow(input_file, start_shard_id)
             print("File sharded in " + str(len(shards)) + " shards")
             print("Downloading starting now, check your bandwidth speed (with bwm-ng)"

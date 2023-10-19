@@ -69,7 +69,6 @@ def download_image(row, timeout, user_agent_token, disallowed_header_directives)
             #                                     verbose=False)
             #     img_stream = io.BytesIO(f.read())
             # ======================================================
-            # ======================================================
 
         # ======================== HTTPX ========================
         import httpx
