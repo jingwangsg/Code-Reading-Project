@@ -23,6 +23,9 @@ def multiprocessing_distributor(processes_count, downloader, reader, _, max_shar
     """Distribute the work to the processes using multiprocessing"""
     ctx = get_context("spawn")
     with ctx.Pool(processes_count, maxtasksperchild=5) as process_pool:
+        # 这里的maxtasksperchild意味着:
+        # 每个进程最多执行5个任务就会被销毁，然后重新创建一个进程
+        # 这是为了防止长期运行的进程出现内存泄漏或其他问题
 
         def run(gen):
             failed_shards = []

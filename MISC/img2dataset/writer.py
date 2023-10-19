@@ -270,7 +270,7 @@ class FilesSampleWriter:
             self.fs.mkdir(self.subfolder)
         self.save_caption = save_caption
         self.buffered_parquet_writer = BufferedParquetWriter(output_folder + "/" + shard_name + ".parquet", schema, 100)
-        # 借用了BufferedParquetWriter以实现对parquet文件的增量写入
+        # 写入每个shard的meta信息
         self.encode_format = encode_format
 
     def write(self, img_str, key, caption, meta):
