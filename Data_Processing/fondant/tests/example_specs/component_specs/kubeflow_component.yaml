@@ -1,0 +1,82 @@
+components:
+  comp-example-component:
+    executorLabel: exec-example-component
+    inputDefinitions: &id001
+      parameters:
+        cache:
+          defaultValue: true
+          description: Set to False to disable caching, True by default.
+          parameterType: BOOLEAN
+        client_kwargs:
+          defaultValue: {}
+          description: Keyword arguments to pass to the Dask client
+          parameterType: STRUCT
+        cluster_type:
+          defaultValue: default
+          description: The cluster type to use for the execution
+          parameterType: STRING
+        component_spec:
+          description: The component specification as a dictionary
+          parameterType: STRUCT
+        input_manifest_path:
+          description: Path to the input manifest
+          isOptional: true
+          parameterType: STRING
+        input_partition_rows:
+          description: The number of rows to load per partition.                         Set
+            to override the automatic partitioning
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        metadata:
+          description: Metadata arguments containing the run id and base path
+          parameterType: STRING
+        output_manifest_path:
+          description: Path to the output manifest
+          parameterType: STRING
+        storage_args:
+          description: Storage arguments
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-example-component:
+      container:
+        command:
+        - fondant
+        - execute
+        - main
+        image: example_component:latest
+pipelineInfo:
+  name: example-component
+root:
+  dag:
+    tasks:
+      example-component:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-example-component
+        inputs:
+          parameters:
+            cache:
+              componentInputParameter: cache
+            client_kwargs:
+              componentInputParameter: client_kwargs
+            cluster_type:
+              componentInputParameter: cluster_type
+            component_spec:
+              componentInputParameter: component_spec
+            input_manifest_path:
+              componentInputParameter: input_manifest_path
+            input_partition_rows:
+              componentInputParameter: input_partition_rows
+            metadata:
+              componentInputParameter: metadata
+            output_manifest_path:
+              componentInputParameter: output_manifest_path
+            storage_args:
+              componentInputParameter: storage_args
+        taskInfo:
+          name: example-component
+  inputDefinitions: *id001
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.0.1
