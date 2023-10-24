@@ -12,14 +12,13 @@ from mmcv.cnn import build_norm_layer
 
 @BACKBONES.register_module()
 class EvaCLIPViT(BaseModule):
+
     def __init__(self, model_name, pretrained, out_indices=[3, 5, 7, 11], norm_cfg=None):
         super().__init__()
         self.vit_layers = out_indices
         self.model_name = model_name
         self.pretrained = pretrained  # the pretrained .pt file
-        clip_model = open_clip.create_model(model_name,
-                                            pretrained="eva",
-                                            cache_dir=pretrained)
+        clip_model = open_clip.create_model(model_name, pretrained="eva", cache_dir=pretrained)
         self.embed_dim = embed_dim = clip_model.embed_dim  # output dim
         self.width = width = clip_model.visual.embed_dim
         self.patch_size = patch_size = clip_model.visual.patch_embed.patch_size[0]
@@ -29,9 +28,7 @@ class EvaCLIPViT(BaseModule):
             nn.GELU(),
             nn.ConvTranspose2d(width, width, kernel_size=2, stride=2),
         )
-        self.interpolate2 = nn.Sequential(
-            nn.ConvTranspose2d(width, width, kernel_size=2, stride=2),
-        )
+        self.interpolate2 = nn.Sequential(nn.ConvTranspose2d(width, width, kernel_size=2, stride=2),)
         self.interpolate3 = nn.Identity()
         self.interpolate4 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.visual = clip_model.visual
@@ -39,10 +36,7 @@ class EvaCLIPViT(BaseModule):
         # self.interpolate4 = nn.Conv2d(width, width, kernel_size=3, stride=2, padding=1)
 
     def init_weights(self):
-        clip_model = open_clip.create_model(self.model_name,
-                                            pretrained="eva",
-                                            cache_dir=self.pretrained,
-                                            device="cpu")
+        clip_model = open_clip.create_model(self.model_name, pretrained="eva", cache_dir=self.pretrained, device="cpu")
         print_log(self.visual.load_state_dict(clip_model.visual.state_dict(), strict=True))
         for param in self.visual.parameters():  # only freeze the CLIP model
             param.requires_grad = False

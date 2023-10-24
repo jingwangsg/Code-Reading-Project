@@ -1,4 +1,0 @@
-model_config:
-  simple:
-    in_dim: 1
-    data_item_key: input

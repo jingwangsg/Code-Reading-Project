@@ -12,6 +12,7 @@ from mmdet.core import multiclass_nms
 
 @HEADS.register_module()
 class FViTBBoxHead(ConvFCBBoxHead):
+
     def __init__(self,
                  fixed_temperature=0,
                  learned_temperature=50.0,
@@ -27,8 +28,7 @@ class FViTBBoxHead(ConvFCBBoxHead):
         if fixed_temperature != 0:
             self.detect_temperature = fixed_temperature
         else:
-            self.detect_temperature = torch.nn.Parameter(
-                torch.tensor(learned_temperature))
+            self.detect_temperature = torch.nn.Parameter(torch.tensor(learned_temperature))
         self.vlm_temperature = vlm_temperature
         self.alpha = alpha
         self.beta = beta
@@ -113,37 +113,27 @@ class FViTBBoxHead(ConvFCBBoxHead):
             vlm_score = normalized_vlm_box_feats @ all_embed * self.vlm_temperature
             vlm_score = vlm_score.softmax(dim=-1)
 
-            cls_score[:, self.base_idx] = cls_score[:, self.base_idx] ** (
-                    1 - self.alpha) * vlm_score[:, self.base_idx] ** self.alpha
-            cls_score[:, self.novel_idx] = cls_score[:, self.novel_idx] ** (
-                    1 - self.beta) * vlm_score[:, self.novel_idx] ** self.beta
+            cls_score[:, self.base_idx] = cls_score[:, self.base_idx]**(
+                1 - self.alpha) * vlm_score[:, self.base_idx]**self.alpha
+            cls_score[:, self.novel_idx] = cls_score[:, self.novel_idx]**(
+                1 - self.beta) * vlm_score[:, self.novel_idx]**self.beta
 
         return cls_score, bbox_pred
 
     @force_fp32(apply_to=('cls_score', 'bbox_pred'))
-    def get_bboxes(self,
-                   rois,
-                   cls_score,
-                   bbox_pred,
-                   img_shape,
-                   scale_factor,
-                   rescale=False,
-                   cfg=None):
+    def get_bboxes(self, rois, cls_score, bbox_pred, img_shape, scale_factor, rescale=False, cfg=None):
         # some loss (Seesaw loss..) may have custom activation
         if self.custom_cls_channels:
             scores = self.loss_cls.get_activation(cls_score)
         else:
             if self.training:
-                scores = F.softmax(cls_score,
-                                   dim=-1) if cls_score is not None else None
+                scores = F.softmax(cls_score, dim=-1) if cls_score is not None else None
             else:
                 scores = cls_score
         # bbox_pred would be None in some detector when with_reg is False,
         # e.g. Grid R-CNN.
         if bbox_pred is not None:
-            bboxes = self.bbox_coder.decode(rois[..., 1:],
-                                            bbox_pred,
-                                            max_shape=img_shape)
+            bboxes = self.bbox_coder.decode(rois[..., 1:], bbox_pred, max_shape=img_shape)
         else:
             bboxes = rois[:, 1:].clone()
             if img_shape is not None:
@@ -152,66 +142,52 @@ class FViTBBoxHead(ConvFCBBoxHead):
 
         if rescale and bboxes.size(0) > 0:
             scale_factor = bboxes.new_tensor(scale_factor)
-            bboxes = (bboxes.view(bboxes.size(0), -1, 4) / scale_factor).view(
-                bboxes.size()[0], -1)
+            bboxes = (bboxes.view(bboxes.size(0), -1, 4) / scale_factor).view(bboxes.size()[0], -1)
 
         if cfg is None:
             return bboxes, scores
         else:
-            det_bboxes, det_labels = multiclass_nms(bboxes, scores,
-                                                    cfg.score_thr, cfg.nms,
-                                                    cfg.max_per_img)
+            det_bboxes, det_labels = multiclass_nms(bboxes, scores, cfg.score_thr, cfg.nms, cfg.max_per_img)
             return det_bboxes, det_labels
 
 
 @HEADS.register_module()
 class FViTRoIHead(StandardRoIHead):
+
     def __init__(self, vlm_roi_extractor=None, **kwargs):
         super().__init__(**kwargs)
         self.vlm_roi_extractor = build_roi_extractor(vlm_roi_extractor)
 
-    def simple_test(self,
-                    x,
-                    proposal_list,
-                    img_metas,
-                    vlm_feat=None,
-                    proposals=None,
-                    rescale=False):
+    def simple_test(self, x, proposal_list, img_metas, vlm_feat=None, proposals=None, rescale=False):
         assert self.with_bbox, 'Bbox head must be implemented.'
 
-        det_bboxes, det_labels = self.simple_test_bboxes(
-            x, img_metas, proposal_list, self.test_cfg, rescale=rescale, vlm_feat=vlm_feat)
+        det_bboxes, det_labels = self.simple_test_bboxes(x,
+                                                         img_metas,
+                                                         proposal_list,
+                                                         self.test_cfg,
+                                                         rescale=rescale,
+                                                         vlm_feat=vlm_feat)
 
         bbox_results = [
-            bbox2result(det_bboxes[i], det_labels[i],
-                        self.bbox_head.num_classes)
-            for i in range(len(det_bboxes))
+            bbox2result(det_bboxes[i], det_labels[i], self.bbox_head.num_classes) for i in range(len(det_bboxes))
         ]
 
         if not self.with_mask:
             return bbox_results
         else:
-            segm_results = self.simple_test_mask(
-                x, img_metas, det_bboxes, det_labels, rescale=rescale)
+            segm_results = self.simple_test_mask(x, img_metas, det_bboxes, det_labels, rescale=rescale)
             return list(zip(bbox_results, segm_results))
 
-    def simple_test_bboxes(self,
-                           x,
-                           img_metas,
-                           proposals,
-                           rcnn_test_cfg,
-                           vlm_feat=None,
-                           rescale=False):
+    def simple_test_bboxes(self, x, img_metas, proposals, rcnn_test_cfg, vlm_feat=None, rescale=False):
         rois = bbox2roi(proposals)
 
         if rois.shape[0] == 0:
             batch_size = len(proposals)
             det_bbox = rois.new_zeros(0, 5)
-            det_label = rois.new_zeros((0, ), dtype=torch.long)
+            det_label = rois.new_zeros((0,), dtype=torch.long)
             if rcnn_test_cfg is None:
                 det_bbox = det_bbox[:, :4]
-                det_label = rois.new_zeros(
-                    (0, self.bbox_head.fc_cls.out_features))
+                det_label = rois.new_zeros((0, self.bbox_head.fc_cls.out_features))
             # There is no proposal in the whole batch
             return [det_bbox] * batch_size, [det_label] * batch_size
 
@@ -233,10 +209,9 @@ class FViTRoIHead(StandardRoIHead):
             if isinstance(bbox_pred, torch.Tensor):
                 bbox_pred = bbox_pred.split(num_proposals_per_img, 0)
             else:
-                bbox_pred = self.bbox_head.bbox_pred_split(
-                    bbox_pred, num_proposals_per_img)
+                bbox_pred = self.bbox_head.bbox_pred_split(bbox_pred, num_proposals_per_img)
         else:
-            bbox_pred = (None, ) * len(proposals)
+            bbox_pred = (None,) * len(proposals)
 
         # apply bbox post-processing to each image individually
         det_bboxes = []
@@ -245,21 +220,19 @@ class FViTRoIHead(StandardRoIHead):
             if rois[i].shape[0] == 0:
                 # There is no proposal in the single image
                 det_bbox = rois[i].new_zeros(0, 5)
-                det_label = rois[i].new_zeros((0, ), dtype=torch.long)
+                det_label = rois[i].new_zeros((0,), dtype=torch.long)
                 if rcnn_test_cfg is None:
                     det_bbox = det_bbox[:, :4]
-                    det_label = rois[i].new_zeros(
-                        (0, self.bbox_head.fc_cls.out_features))
+                    det_label = rois[i].new_zeros((0, self.bbox_head.fc_cls.out_features))
 
             else:
-                det_bbox, det_label = self.bbox_head.get_bboxes(
-                    rois[i],
-                    cls_score[i],
-                    bbox_pred[i],
-                    img_shapes[i],
-                    scale_factors[i],
-                    rescale=rescale,
-                    cfg=rcnn_test_cfg)
+                det_bbox, det_label = self.bbox_head.get_bboxes(rois[i],
+                                                                cls_score[i],
+                                                                bbox_pred[i],
+                                                                img_shapes[i],
+                                                                scale_factors[i],
+                                                                rescale=rescale,
+                                                                cfg=rcnn_test_cfg)
             det_bboxes.append(det_bbox)
             det_labels.append(det_label)
         return det_bboxes, det_labels
@@ -267,8 +240,7 @@ class FViTRoIHead(StandardRoIHead):
     def _bbox_forward(self, x, rois, vlm_feat=None):
         """Box head forward function used in both training and testing."""
         # TODO: a more flexible way to decide which feature maps to use
-        bbox_feats = self.bbox_roi_extractor(
-            x[:self.bbox_roi_extractor.num_inputs], rois)
+        bbox_feats = self.bbox_roi_extractor(x[:self.bbox_roi_extractor.num_inputs], rois)
         if self.with_shared_head:
             bbox_feats = self.shared_head(bbox_feats)
         vlm_roi_feats = None
@@ -276,13 +248,13 @@ class FViTRoIHead(StandardRoIHead):
             vlm_roi_feats = self.vlm_roi_extractor([vlm_feat], rois)[..., 0, 0]
         cls_score, bbox_pred = self.bbox_head(bbox_feats, vlm_roi_feats)
 
-        bbox_results = dict(
-            cls_score=cls_score, bbox_pred=bbox_pred, bbox_feats=bbox_feats)
+        bbox_results = dict(cls_score=cls_score, bbox_pred=bbox_pred, bbox_feats=bbox_feats)
         return bbox_results
 
 
 @HEADS.register_module()
 class FViTTransferBBoxHead(FViTBBoxHead):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fixed_temperature = kwargs['fixed_temperature']
@@ -342,6 +314,6 @@ class FViTTransferBBoxHead(FViTBBoxHead):
         vlm_score = normalized_vlm_box_feats @ all_embed * self.vlm_temperature
         vlm_score = vlm_score.softmax(dim=-1)
 
-        cls_score = cls_score ** (1 - self.alpha) * vlm_score ** self.alpha
+        cls_score = cls_score**(1 - self.alpha) * vlm_score**self.alpha
 
         return cls_score, bbox_pred

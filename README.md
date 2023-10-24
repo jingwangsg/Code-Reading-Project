@@ -1,2 +1,4 @@
-# Code-Reading-Project
-Reading project for research purpose
+# MMDet 2.x
+
+
+# MMDet 3.x
