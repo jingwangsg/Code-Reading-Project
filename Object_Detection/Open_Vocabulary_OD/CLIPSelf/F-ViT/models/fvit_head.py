@@ -48,6 +48,7 @@ class FViTBBoxHead(ConvFCBBoxHead):
         all_embed = torch.stack(all_embed, dim=0).permute(1, 0).contiguous()
         all_embed = F.normalize(all_embed, p=2, dim=0)
 
+        
         self.register_buffer('all_embeddings', all_embed)
         if learn_bg:
             self.bg_embedding = nn.Parameter(all_embed[:, -1:])

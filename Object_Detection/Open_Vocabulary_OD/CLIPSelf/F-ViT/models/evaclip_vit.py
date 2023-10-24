@@ -22,6 +22,7 @@ class EvaCLIPViT(BaseModule):
         self.embed_dim = embed_dim = clip_model.embed_dim  # output dim
         self.width = width = clip_model.visual.embed_dim
         self.patch_size = patch_size = clip_model.visual.patch_embed.patch_size[0]
+
         self.interpolate1 = nn.Sequential(
             nn.ConvTranspose2d(width, width, kernel_size=2, stride=2),
             build_norm_layer(norm_cfg, width)[1] if norm_cfg else nn.Identity(),

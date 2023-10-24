@@ -15,6 +15,7 @@ from mmdet.datasets.coco import CocoDataset
 
 @DATASETS.register_module()
 class CocoDatasetOV(CocoDataset):
+
     def __init__(self,
                  ann_file,
                  pipeline,
@@ -22,7 +23,7 @@ class CocoDatasetOV(CocoDataset):
                  unseen_classes='datasets/mscoco_unseen_classes.json',
                  all_classes='datasets/mscoco_65_classes.json',
                  **kwargs):
-        
+
         super().__init__(ann_file, pipeline, **kwargs)
         self.seen_classes = json.load(open(seen_classes))
         self.unseen_classes = json.load(open(unseen_classes))
@@ -48,7 +49,7 @@ class CocoDatasetOV(CocoDataset):
         data_info = self._parse_ann_info(self.data_infos[idx], ann_info)
 
         return data_info
-    
+
     def _parse_ann_info(self, img_info, ann_info):
         """Parse bbox and mask annotation.
 
@@ -99,12 +100,11 @@ class CocoDatasetOV(CocoDataset):
 
         seg_map = img_info['filename'].rsplit('.', 1)[0] + self.seg_suffix
 
-        ann = dict(
-            bboxes=gt_bboxes,
-            labels=gt_labels,
-            bboxes_ignore=gt_bboxes_ignore,
-            masks=gt_masks_ann,
-            seg_map=seg_map)
+        ann = dict(bboxes=gt_bboxes,
+                   labels=gt_labels,
+                   bboxes_ignore=gt_bboxes_ignore,
+                   masks=gt_masks_ann,
+                   seg_map=seg_map)
 
         return ann
 
@@ -159,10 +159,8 @@ class CocoDatasetOV(CocoDataset):
         # self.cat_ids = self.known_cat_ids
         # self.cat_ids = self.unknown_cat_ids
         result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
-        eval_results = self.evaluate_det_segm(results, result_files, coco_gt,
-                                              metrics, logger, classwise,
-                                              proposal_nums, iou_thrs,
-                                              metric_items)
+        eval_results = self.evaluate_det_segm(results, result_files, coco_gt, metrics, logger, classwise, proposal_nums,
+                                              iou_thrs, metric_items)
 
         if tmp_dir is not None:
             tmp_dir.cleanup()
@@ -210,8 +208,7 @@ class CocoDatasetOV(CocoDataset):
             dict[str, float]: COCO style evaluation metric.
         """
         if iou_thrs is None:
-            iou_thrs = np.linspace(
-                .5, 0.95, int(np.round((0.95 - .5) / .05)) + 1, endpoint=True)
+            iou_thrs = np.linspace(.5, 0.95, int(np.round((0.95 - .5) / .05)) + 1, endpoint=True)
         if metric_items is not None:
             if not isinstance(metric_items, list):
                 metric_items = [metric_items]
@@ -240,11 +237,7 @@ class CocoDatasetOV(CocoDataset):
                 proposal_list = []
                 for box_res, mask_res in results:
                     proposal_list.append(np.concatenate(box_res, axis=0))
-                ar = self.fast_eval_recall(
-                        proposal_list,
-                        proposal_nums,
-                        iou_thrs, logger='silent'
-                    )
+                ar = self.fast_eval_recall(proposal_list, proposal_nums, iou_thrs, logger='silent')
                 log_msg = []
                 for i, num in enumerate(proposal_nums):
                     eval_results[f'AR@{num}'] = float(f'{ar[i]:.4f}')
@@ -271,14 +264,10 @@ class CocoDatasetOV(CocoDataset):
                     warnings.warn(
                         'The key "bbox" is deleted for more accurate mask AP '
                         'of small/medium/large instances since v2.12.0. This '
-                        'does not change the overall mAP calculation.',
-                        UserWarning)
+                        'does not change the overall mAP calculation.', UserWarning)
                 coco_det = coco_gt.loadRes(predictions)
             except IndexError:
-                print_log(
-                    'The testing results of the whole dataset is empty.',
-                    logger=logger,
-                    level=logging.ERROR)
+                print_log('The testing results of the whole dataset is empty.', logger=logger, level=logging.ERROR)
                 break
 
             cocoEval = COCOeval(coco_gt, coco_det, iou_type)
@@ -304,8 +293,7 @@ class CocoDatasetOV(CocoDataset):
             if metric_items is not None:
                 for metric_item in metric_items:
                     if metric_item not in coco_metric_names:
-                        raise KeyError(
-                            f'metric item {metric_item} is not supported')
+                        raise KeyError(f'metric item {metric_item} is not supported')
 
             if metric == 'proposal':
                 cocoEval.params.useCats = 0
@@ -319,14 +307,10 @@ class CocoDatasetOV(CocoDataset):
                 print_log('\n' + redirect_string.getvalue(), logger=logger)
 
                 if metric_items is None:
-                    metric_items = [
-                        'AR@100', 'AR@300', 'AR@1000', 'AR_s@1000',
-                        'AR_m@1000', 'AR_l@1000'
-                    ]
+                    metric_items = ['AR@100', 'AR@300', 'AR@1000', 'AR_s@1000', 'AR_m@1000', 'AR_l@1000']
 
                 for item in metric_items:
-                    val = float(
-                        f'{cocoEval.stats[coco_metric_names[item]]:.3f}')
+                    val = float(f'{cocoEval.stats[coco_metric_names[item]]:.3f}')
                     eval_results[item] = val
             else:
                 cocoEval.evaluate()
@@ -354,12 +338,12 @@ class CocoDatasetOV(CocoDataset):
                         # area range index 0: all area ranges
                         # max dets index -1: typically 100 per image
                         name = self.coco.loadCats(catId)[0]['name']
-                        
+
                         precision = precisions[:, :, idx, 0, -1]
                         precision = precision[precision > -1]
                         ap = np.mean(precision) if precision.size else float("nan")
                         results_per_category.append(("{}".format(name), float(ap * 100)))
-                        
+
                         precision50 = precisions[0, :, idx, 0, -1]
                         precision50 = precision50[precision50 > -1]
                         ap50 = np.mean(precision50) if precision50.size else float("nan")
@@ -369,7 +353,7 @@ class CocoDatasetOV(CocoDataset):
                             results_per_category50_seen.append(float(ap50 * 100))
                         if name in self.unseen_classes:
                             results_per_category50_unseen.append(float(ap50 * 100))
-                    
+
                     base_ap50 = np.nanmean(results_per_category50_seen)
                     novel_ap50 = np.nanmean(results_per_category50_unseen)
                     all_ap50 = np.nanmean(results_per_category50)
@@ -377,20 +361,15 @@ class CocoDatasetOV(CocoDataset):
                     eval_results['novel_ap50'] = float(f'{novel_ap50:.3f}')
                     eval_results['all_ap50'] = float(f'{all_ap50:.3f}')
                 if metric_items is None:
-                    metric_items = [
-                        'mAP', 'mAP_50', 'mAP_75', 'mAP_s', 'mAP_m', 'mAP_l'
-                    ]
+                    metric_items = ['mAP', 'mAP_50', 'mAP_75', 'mAP_s', 'mAP_m', 'mAP_l']
 
                 for metric_item in metric_items:
                     key = f'{metric}_{metric_item}'
-                    val = float(
-                        f'{cocoEval.stats[coco_metric_names[metric_item]]:.3f}'
-                    )
+                    val = float(f'{cocoEval.stats[coco_metric_names[metric_item]]:.3f}')
                     eval_results[key] = val
                 ap = cocoEval.stats[:6]
-                eval_results[f'{metric}_mAP_copypaste'] = (
-                    f'{ap[0]:.3f} {ap[1]:.3f} {ap[2]:.3f} {ap[3]:.3f} '
-                    f'{ap[4]:.3f} {ap[5]:.3f}')
+                eval_results[f'{metric}_mAP_copypaste'] = (f'{ap[0]:.3f} {ap[1]:.3f} {ap[2]:.3f} {ap[3]:.3f} '
+                                                           f'{ap[4]:.3f} {ap[5]:.3f}')
 
         return eval_results
 

@@ -4,6 +4,7 @@ from mmdet.models.detectors import TwoStageDetector
 
 @DETECTORS.register_module()
 class FViT(TwoStageDetector):
+
     def simple_test(self, img, img_metas, proposals=None, rescale=False):
         """Test without augmentation."""
         # num_seen_classes = self.roi_head.bbox_head.num_classes
@@ -21,11 +22,7 @@ class FViT(TwoStageDetector):
         else:
             proposal_list = proposals
 
-        res = self.roi_head.simple_test(x,
-                                        proposal_list,
-                                        img_metas,
-                                        vlm_feat=mlvl_feats[-1],
-                                        rescale=rescale)
+        res = self.roi_head.simple_test(x, proposal_list, img_metas, vlm_feat=mlvl_feats[-1], rescale=rescale)
 
         return res
 
@@ -40,6 +37,7 @@ class FViT(TwoStageDetector):
                       gt_captions=None,
                       gt_embeds=None,
                       **kwargs):
+        # 
         res_feats = self.backbone(img)
         if self.with_neck:
             x = self.neck(res_feats[:-1])
@@ -49,24 +47,28 @@ class FViT(TwoStageDetector):
         losses = dict()
 
         # RPN forward and loss
+        # 1. from rpn_head
+        # 2. from input
         if self.with_rpn:
-            proposal_cfg = self.train_cfg.get('rpn_proposal',
-                                              self.test_cfg.rpn)
-            rpn_losses, proposal_list = self.rpn_head.forward_train(
-                x,
-                img_metas,
-                gt_bboxes,
-                gt_labels=None,
-                gt_bboxes_ignore=gt_bboxes_ignore,
-                proposal_cfg=proposal_cfg,
-                **kwargs)
+            proposal_cfg = self.train_cfg.get('rpn_proposal', self.test_cfg.rpn)
+            rpn_losses, proposal_list = self.rpn_head.forward_train(x,
+                                                                    img_metas,
+                                                                    gt_bboxes,
+                                                                    gt_labels=None,
+                                                                    gt_bboxes_ignore=gt_bboxes_ignore,
+                                                                    proposal_cfg=proposal_cfg,
+                                                                    **kwargs)
             losses.update(rpn_losses)
         else:
             proposal_list = proposals
 
-        roi_losses = self.roi_head.forward_train(x, img_metas, proposal_list,
-                                                 gt_bboxes, gt_labels,
-                                                 gt_bboxes_ignore, gt_masks,
+        roi_losses = self.roi_head.forward_train(x,
+                                                 img_metas,
+                                                 proposal_list,
+                                                 gt_bboxes,
+                                                 gt_labels,
+                                                 gt_bboxes_ignore,
+                                                 gt_masks,
                                                  res_feats=res_feats,
                                                  gt_captions=gt_captions,
                                                  gt_embeds=gt_embeds,
