@@ -29,12 +29,10 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+
 def postprocess_clip_output(model_out):
-    return {
-        "image_features": model_out[0],
-        "text_features": model_out[1],
-        "logit_scale": model_out[2]
-    }
+    return {"image_features": model_out[0], "text_features": model_out[1], "logit_scale": model_out[2]}
+
 
 def unwrap_model(model):
     if hasattr(model, 'module'):
@@ -134,12 +132,10 @@ def train_one_epoch(model, method, data, loss, epoch, optimizer, scaler, schedul
                 losses_m[key].update(val.item(), batch_size)
 
             logit_scale_scalar = logit_scale.item()
-            loss_log = " ".join(
-                [
-                    f"{loss_name.capitalize()}: {loss_m.val:#.5g} ({loss_m.avg:#.5g})" 
-                    for loss_name, loss_m in losses_m.items()
-                ]
-            )
+            loss_log = " ".join([
+                f"{loss_name.capitalize()}: {loss_m.val:#.5g} ({loss_m.avg:#.5g})"
+                for loss_name, loss_m in losses_m.items()
+            ])
             samples_per_second = args.accum_freq * args.batch_size * args.world_size / batch_time_m.val
             samples_per_second_per_gpu = args.accum_freq * args.batch_size / batch_time_m.val
             logging.info(
@@ -147,8 +143,7 @@ def train_one_epoch(model, method, data, loss, epoch, optimizer, scaler, schedul
                 f"Data (t): {data_time_m.avg:.3f} "
                 f"Batch (t): {batch_time_m.avg:.3f}, {samples_per_second:#g}/s, {samples_per_second_per_gpu:#g}/s/gpu "
                 f"LR: {optimizer.param_groups[0]['lr']:5f} "
-                f"Logit Scale: {logit_scale_scalar:.3f} " + loss_log
-            )
+                f"Logit Scale: {logit_scale_scalar:.3f} " + loss_log)
 
             # Save train loss / etc. Using non avg meter values as loggers have their own smoothing
             log_data = {
@@ -158,8 +153,8 @@ def train_one_epoch(model, method, data, loss, epoch, optimizer, scaler, schedul
                 "samples_per_second_per_gpu": samples_per_second_per_gpu,
                 "scale": logit_scale_scalar,
                 "lr": optimizer.param_groups[0]["lr"]
-            }            
-            log_data.update({name:val.val for name,val in losses_m.items()})
+            }
+            log_data.update({name: val.val for name, val in losses_m.items()})
             # resetting batch / data time meters per log window
             batch_time_m.reset()
             data_time_m.reset()
@@ -179,10 +174,7 @@ def evaluate(model, data, epoch, args):
     keys = ''.join([f"{k}, " for k in metrics.keys() if 'all' in k])[:-2]
     values = ''.join([f'{round(v, 4):.4f}, ' for k, v in metrics.items() if 'all' in k])[:-2]
 
-    logging.info(
-        f"Eval Epoch: {epoch}. "
-        + f"{keys}: {values}."
-    )
+    logging.info(f"Eval Epoch: {epoch}. " + f"{keys}: {values}.")
     # TODO save the results as plots
     logging.info(metrics)
 

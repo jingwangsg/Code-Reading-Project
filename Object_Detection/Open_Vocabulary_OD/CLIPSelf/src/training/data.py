@@ -366,7 +366,7 @@ class COCOPanopticDataset(Dataset):
                 continue
             image_crops[i] = self.transforms[1](old_image.crop((x0, y0, x1, y1)))   # image crops
             # masked image crop
-            np_old_image = np.asarray(old_image.copy())
+            np_old_image = np.array(old_image)
             np_old_image[segm_map != ann['id']] = 114
             masked_old_image = Image.fromarray(np_old_image)
             masked_image_crops[i] = self.transforms[1](masked_old_image.crop((x0, y0, x1, y1)))   # image crops

@@ -4,11 +4,12 @@ import torch.nn.functional as F
 
 
 class CLIPSelf:
+
     def __call__(self, batch, model, dist_model, loss, device, cast_dtype, distributed, args):
         if distributed:
             model = model.module
             dist_model = dist_model.module
-        images, normed_boxes, image_crops = batch       # note texts are not paired with images
+        images, normed_boxes, image_crops = batch  # note texts are not paired with images
 
         images = images.to(device=device, dtype=cast_dtype, non_blocking=True)
         normed_boxes = normed_boxes.to(device=device, dtype=cast_dtype, non_blocking=True)
@@ -36,14 +37,15 @@ class CLIPSelf:
         image_crops = torch.cat(crops_list)
         with torch.no_grad():
             teacher_crop_features = dist_model.encode_image(image_crops, normalize=False)
-        student_roi_features = model.encode_pseudo_boxes(images, rois_list, normalize=False,
+        student_roi_features = model.encode_pseudo_boxes(images,
+                                                         rois_list,
+                                                         normalize=False,
                                                          extract_type=args.extract_type)
 
         normed_student_features = F.normalize(student_roi_features, dim=-1)
         normed_teacher_features = F.normalize(teacher_crop_features, dim=-1)
 
-        loss_cosine = 1.0 - (normed_student_features *
-                             normed_teacher_features).sum(-1).mean()
-        losses = dict(loss_cosine=loss_cosine*args.cosine_weight)
+        loss_cosine = 1.0 - (normed_student_features * normed_teacher_features).sum(-1).mean()
+        losses = dict(loss_cosine=loss_cosine * args.cosine_weight)
 
         return losses, len(images), model.logit_scale.exp()

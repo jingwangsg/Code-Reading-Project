@@ -21,7 +21,6 @@ from training.scheduler import cosine_lr, const_lr, const_lr_cooldown
 from training.train import train_one_epoch, evaluate, student_teacher_ensemble
 from training.file_utils import pt_load
 
-
 LATEST_CHECKPOINT_NAME = "epoch_latest.pt"
 
 
@@ -36,7 +35,7 @@ def natural_key(string_):
     return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_.lower())]
 
 
-def get_latest_checkpoint(path: str, remote : bool):
+def get_latest_checkpoint(path: str, remote: bool):
     # as writen, this glob recurses, so can pick up checkpoints across multiple sub-folders
     if remote:
         result = subprocess.run(["aws", "s3", "ls", path + "/"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -90,10 +89,7 @@ def main(args):
         log_filename = f'out-{args.rank}' if args.log_local else 'out.log'
         args.log_path = os.path.join(log_base_path, log_filename)
         if os.path.exists(args.log_path):
-            print(
-                "Error. Experiment already exists. Use --name {} to specify a new experiment."
-            )
-            return -1
+            raise Exception("Error. Experiment already exists. Use --name {} to specify a new experiment.")
 
     # Setup text logger
     args.log_level = logging.DEBUG if args.debug else logging.INFO
@@ -101,14 +97,12 @@ def main(args):
     args.checkpoint_path = os.path.join(log_base_path, "checkpoints")
 
     if args.precision == 'fp16':
-        logging.warning(
-            'It is recommended to use AMP mixed-precision instead of FP16. '
-            'FP16 support needs further verification and tuning, especially for train.')
+        logging.warning('It is recommended to use AMP mixed-precision instead of FP16. '
+                        'FP16 support needs further verification and tuning, especially for train.')
 
     elif args.distributed:
-        logging.info(
-            f'Running in distributed mode with multiple processes. Device: {args.device}.'
-            f'Process (global: {args.rank}, local {args.local_rank}), total {args.world_size}.')
+        logging.info(f'Running in distributed mode with multiple processes. Device: {args.device}.'
+                     f'Process (global: {args.rank}, local {args.local_rank}), total {args.world_size}.')
     else:
         logging.info(f'Running with a single process. Device {args.device}.')
 
@@ -181,7 +175,7 @@ def main(args):
     if args.distributed:
         if args.use_bn_sync:
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        ddp_args = {}   # {"find_unused_parameters": True}
+        ddp_args = {}  # {"find_unused_parameters": True}
         if args.ddp_static_graph:
             # this doesn't exist in older PyTorch, arg only added if enabled
             ddp_args['static_graph'] = True
@@ -204,8 +198,14 @@ def main(args):
         rest_params = [p for n, p in named_parameters if include(n, p) and p.requires_grad]
         optimizer = optim.AdamW(
             [
-                {"params": gain_or_bias_params, "weight_decay": 0.},
-                {"params": rest_params, "weight_decay": args.wd},
+                {
+                    "params": gain_or_bias_params,
+                    "weight_decay": 0.
+                },
+                {
+                    "params": rest_params,
+                    "weight_decay": args.wd
+                },
             ],
             lr=args.lr,
             betas=(args.beta1, args.beta2),
@@ -250,9 +250,8 @@ def main(args):
             assert args.epochs_cooldown is not None,\
                 "Please specify the number of cooldown epochs for this lr schedule."
             cooldown_steps = (data["train"].dataloader.num_batches // args.accum_freq) * args.epochs_cooldown
-            scheduler = const_lr_cooldown(
-                optimizer, args.lr, args.warmup, total_steps,
-                cooldown_steps, args.lr_cooldown_power, args.lr_cooldown_end)
+            scheduler = const_lr_cooldown(optimizer, args.lr, args.warmup, total_steps, cooldown_steps,
+                                          args.lr_cooldown_power, args.lr_cooldown_end)
         else:
             logging.error(
                 f'Unknown scheduler, {args.lr_scheduler}. Available options are: cosine, const, const-cooldown.')
@@ -273,8 +272,7 @@ def main(args):
     for epoch in range(start_epoch, args.epochs):
         if is_master(args):
             logging.info(f'Start epoch {epoch}')
-        train_one_epoch(model, method, data, loss, epoch, optimizer, scaler,
-                        scheduler, dist_model, args)
+        train_one_epoch(model, method, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args)
         completed_epoch = epoch + 1
 
         student_state_dict = model.module.state_dict() \
@@ -284,13 +282,12 @@ def main(args):
                 teacher_state_dict = dist_model.module.state_dict() \
                     if args.distributed else dist_model.state_dict()
             else:
-                dist_model = create_model(
-                    args.model,
-                    args.pretrained,
-                    device=device,
-                    precision=args.precision,
-                    output_dict=True,
-                    cache_dir=args.cache_dir)
+                dist_model = create_model(args.model,
+                                          args.pretrained,
+                                          device=device,
+                                          precision=args.precision,
+                                          output_dict=True,
+                                          cache_dir=args.cache_dir)
                 teacher_state_dict = dist_model.state_dict()
                 dist_model = None
             target_state_dict = student_teacher_ensemble(student_state_dict, teacher_state_dict, args.alpha)
@@ -308,9 +305,8 @@ def main(args):
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()
 
-            if completed_epoch == args.epochs or (
-                    args.save_frequency > 0 and (completed_epoch % args.save_frequency) == 0
-            ):
+            if completed_epoch == args.epochs or (args.save_frequency > 0 and
+                                                  (completed_epoch % args.save_frequency) == 0):
                 torch.save(
                     checkpoint_dict,
                     os.path.join(args.checkpoint_path, f"epoch_{completed_epoch}.pt"),
@@ -328,13 +324,12 @@ def main(args):
                 os.replace(tmp_save_path, latest_save_path)
 
         if completed_epoch % args.zeroshot_frequency == 0:
-            test_model = create_model(
-                args.model,
-                args.pretrained,
-                device=device,
-                precision=args.precision,
-                output_dict=True,
-                cache_dir=args.cache_dir)
+            test_model = create_model(args.model,
+                                      args.pretrained,
+                                      device=device,
+                                      precision=args.precision,
+                                      output_dict=True,
+                                      cache_dir=args.cache_dir)
             test_model.load_state_dict(target_state_dict)
             if args.distributed:
                 test_model = torch.nn.parallel.DistributedDataParallel(test_model, device_ids=[device], **ddp_args)

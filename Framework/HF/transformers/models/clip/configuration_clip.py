@@ -18,7 +18,6 @@ import os
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 
-
 if TYPE_CHECKING:
     from ...processing_utils import ProcessorMixin
     from ...utils import TensorType
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
 from ...configuration_utils import PretrainedConfig
 from ...onnx import OnnxConfig
 from ...utils import logging
-
 
 logger = logging.get_logger(__name__)
 
@@ -147,8 +145,7 @@ class CLIPTextConfig(PretrainedConfig):
         if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
             logger.warning(
                 f"You are using a model of type {config_dict['model_type']} to instantiate a model of type "
-                f"{cls.model_type}. This is not supported for all configurations of models and can yield errors."
-            )
+                f"{cls.model_type}. This is not supported for all configurations of models and can yield errors.")
 
         return cls.from_dict(config_dict, **kwargs)
 
@@ -256,8 +253,7 @@ class CLIPVisionConfig(PretrainedConfig):
         if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
             logger.warning(
                 f"You are using a model of type {config_dict['model_type']} to instantiate a model of type "
-                f"{cls.model_type}. This is not supported for all configurations of models and can yield errors."
-            )
+                f"{cls.model_type}. This is not supported for all configurations of models and can yield errors.")
 
         return cls.from_dict(config_dict, **kwargs)
 
@@ -310,9 +306,12 @@ class CLIPConfig(PretrainedConfig):
 
     model_type = "clip"
 
-    def __init__(
-        self, text_config=None, vision_config=None, projection_dim=512, logit_scale_init_value=2.6592, **kwargs
-    ):
+    def __init__(self,
+                 text_config=None,
+                 vision_config=None,
+                 projection_dim=512,
+                 logit_scale_init_value=2.6592,
+                 **kwargs):
         # If `_config_dict` exist, we use them for the backward compatibility.
         # We pop out these 2 attributes before calling `super().__init__` to avoid them being saved (which causes a lot
         # of confusion!).
@@ -338,14 +337,12 @@ class CLIPConfig(PretrainedConfig):
                     if key in text_config_dict:
                         message = (
                             f"`{key}` is found in both `text_config_dict` and `text_config` but with different values. "
-                            f'The value `text_config_dict["{key}"]` will be used instead.'
-                        )
+                            f'The value `text_config_dict["{key}"]` will be used instead.')
                     # If inferred from default argument values (just to be super careful)
                     else:
                         message = (
                             f"`text_config_dict` is provided which will be used to initialize `CLIPTextConfig`. The "
-                            f'value `text_config["{key}"]` will be overriden.'
-                        )
+                            f'value `text_config["{key}"]` will be overriden.')
                     logger.warning(message)
 
             # Update all values in `text_config` with the ones in `_text_config_dict`.
@@ -370,14 +367,12 @@ class CLIPConfig(PretrainedConfig):
                     if key in vision_config_dict:
                         message = (
                             f"`{key}` is found in both `vision_config_dict` and `vision_config` but with different "
-                            f'values. The value `vision_config_dict["{key}"]` will be used instead.'
-                        )
+                            f'values. The value `vision_config_dict["{key}"]` will be used instead.')
                     # If inferred from default argument values (just to be super careful)
                     else:
                         message = (
                             f"`vision_config_dict` is provided which will be used to initialize `CLIPVisionConfig`. "
-                            f'The value `vision_config["{key}"]` will be overriden.'
-                        )
+                            f'The value `vision_config["{key}"]` will be overriden.')
                     logger.warning(message)
 
             # Update all values in `vision_config` with the ones in `_vision_config_dict`.
@@ -412,26 +407,42 @@ class CLIPConfig(PretrainedConfig):
 
 
 class CLIPOnnxConfig(OnnxConfig):
+
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return OrderedDict(
-            [
-                ("input_ids", {0: "batch", 1: "sequence"}),
-                ("pixel_values", {0: "batch", 1: "num_channels", 2: "height", 3: "width"}),
-                ("attention_mask", {0: "batch", 1: "sequence"}),
-            ]
-        )
+        return OrderedDict([
+            ("input_ids", {
+                0: "batch",
+                1: "sequence"
+            }),
+            ("pixel_values", {
+                0: "batch",
+                1: "num_channels",
+                2: "height",
+                3: "width"
+            }),
+            ("attention_mask", {
+                0: "batch",
+                1: "sequence"
+            }),
+        ])
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        return OrderedDict(
-            [
-                ("logits_per_image", {0: "batch"}),
-                ("logits_per_text", {0: "batch"}),
-                ("text_embeds", {0: "batch"}),
-                ("image_embeds", {0: "batch"}),
-            ]
-        )
+        return OrderedDict([
+            ("logits_per_image", {
+                0: "batch"
+            }),
+            ("logits_per_text", {
+                0: "batch"
+            }),
+            ("text_embeds", {
+                0: "batch"
+            }),
+            ("image_embeds", {
+                0: "batch"
+            }),
+        ])
 
     @property
     def atol_for_validation(self) -> float:
@@ -444,12 +455,13 @@ class CLIPOnnxConfig(OnnxConfig):
         seq_length: int = -1,
         framework: Optional["TensorType"] = None,
     ) -> Mapping[str, Any]:
-        text_input_dict = super().generate_dummy_inputs(
-            processor.tokenizer, batch_size=batch_size, seq_length=seq_length, framework=framework
-        )
-        image_input_dict = super().generate_dummy_inputs(
-            processor.image_processor, batch_size=batch_size, framework=framework
-        )
+        text_input_dict = super().generate_dummy_inputs(processor.tokenizer,
+                                                        batch_size=batch_size,
+                                                        seq_length=seq_length,
+                                                        framework=framework)
+        image_input_dict = super().generate_dummy_inputs(processor.image_processor,
+                                                         batch_size=batch_size,
+                                                         framework=framework)
         return {**text_input_dict, **image_input_dict}
 
     @property

@@ -5,18 +5,17 @@ import torch.nn as nn
 
 
 def get_fed_loss_inds(gt_classes, num_sample_cats, C):
-    appeared = torch.unique(gt_classes) # C'
+    appeared = torch.unique(gt_classes)  # C'
     prob = appeared.new_ones(C).float()
     if len(appeared) < num_sample_cats:
         prob[appeared] = 0
-        more_appeared = torch.multinomial(
-            prob, num_sample_cats - len(appeared),
-            replacement=False)
+        more_appeared = torch.multinomial(prob, num_sample_cats - len(appeared), replacement=False)
         appeared = torch.cat([appeared, more_appeared])
     return appeared
 
 
 class RegionCLIP(nn.Module):
+
     def __init__(self, args):
         super().__init__()
         embed_path = args.train_embed_path
@@ -25,8 +24,7 @@ class RegionCLIP(nn.Module):
         self.register_buffer("noun_embeddings", noun_embeddings)
         self.place_holder = nn.Parameter(torch.ones(1))
 
-    def __call__(self, batch, model, dist_model, loss, device, cast_dtype,
-                 distributed, args):
+    def __call__(self, batch, model, dist_model, loss, device, cast_dtype, distributed, args):
         if distributed:
             model = model.module
         images, boxes = batch
@@ -41,8 +39,7 @@ class RegionCLIP(nn.Module):
             boxes_label_list.append(boxes_per_image[:, 4].long())
             boxes_list.append(boxes_per_image[:, :4])
         boxes_labels = torch.cat(boxes_label_list)
-        box_features = model.encode_pseudo_boxes(images, boxes_list, normalize=True,
-                                                 extract_type=args.extract_type)
+        box_features = model.encode_pseudo_boxes(images, boxes_list, normalize=True, extract_type=args.extract_type)
         temp = model.logit_scale.exp().detach()
         boxes2nouns = box_features @ self.noun_embeddings.T * temp
         target = torch.zeros_like(boxes2nouns)

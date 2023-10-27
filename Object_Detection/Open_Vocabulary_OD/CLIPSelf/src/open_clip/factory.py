@@ -109,20 +109,20 @@ def load_checkpoint(model, checkpoint_path, strict=True):
 
 
 def create_model(
-        model_name: str,
-        pretrained: Optional[str] = None,
-        precision: str = 'fp32',
-        device: Union[str, torch.device] = 'cpu',
-        jit: bool = False,
-        force_quick_gelu: bool = False,
-        force_custom_text: bool = False,
-        force_patch_dropout: Optional[float] = None,
-        force_image_size: Optional[Union[int, Tuple[int, int]]] = None,
-        pretrained_image: bool = False,
-        pretrained_hf: bool = True,
-        cache_dir: Optional[str] = None,
-        output_dict: Optional[bool] = None,
-        require_pretrained: bool = False,
+    model_name: str,
+    pretrained: Optional[str] = None,
+    precision: str = 'fp32',
+    device: Union[str, torch.device] = 'cpu',
+    jit: bool = False,
+    force_quick_gelu: bool = False,
+    force_custom_text: bool = False,
+    force_patch_dropout: Optional[float] = None,
+    force_image_size: Optional[Union[int, Tuple[int, int]]] = None,
+    pretrained_image: bool = False,
+    pretrained_hf: bool = True,
+    cache_dir: Optional[str] = None,
+    output_dict: Optional[bool] = None,
+    require_pretrained: bool = False,
 ):
     has_hf_hub_prefix = model_name.startswith(HF_HUB_PREFIX)
     if has_hf_hub_prefix:
@@ -143,10 +143,13 @@ def create_model(
     if isinstance(device, str):
         device = torch.device(device)
     if pretrained == 'eva':
-        return eva_clip.create_model(model_name=model_name,
-                                     pretrained=cache_dir, force_custom_clip=True,
-                                     precision=precision,
-                                     device=device,)
+        return eva_clip.create_model(
+            model_name=model_name,
+            pretrained=cache_dir,
+            force_custom_clip=True,
+            precision=precision,
+            device=device,
+        )
     if pretrained and pretrained.lower() == 'openai':
         logging.info(f'Loading pretrained {model_name} from OpenAI.')
         model = load_openai_model(
@@ -215,9 +218,8 @@ def create_model(
                 logging.info(f'Loading pretrained {model_name} weights ({pretrained}).')
                 load_checkpoint(model, checkpoint_path)
             else:
-                error_str = (
-                    f'Pretrained weights ({pretrained}) not found for model {model_name}.'
-                    f'Available pretrained tags ({list_pretrained_tags_by_model(model_name)}.')
+                error_str = (f'Pretrained weights ({pretrained}) not found for model {model_name}.'
+                             f'Available pretrained tags ({list_pretrained_tags_by_model(model_name)}.')
                 logging.warning(error_str)
                 raise RuntimeError(error_str)
             pretrained_loaded = True
@@ -256,7 +258,7 @@ def create_loss(args):
         LossType = DistillClipLoss
     return LossType(
         local_loss=True,
-        gather_with_grad=True,   # use gather with grad
+        gather_with_grad=True,  # use gather with grad
         cache_labels=True,
         rank=args.rank,
         world_size=args.world_size,
@@ -264,26 +266,24 @@ def create_loss(args):
     )
 
 
-def create_model_and_transforms(
-        model_name: str,
-        pretrained: Optional[str] = None,
-        precision: str = 'fp32',
-        device: Union[str, torch.device] = 'cpu',
-        jit: bool = False,
-        force_quick_gelu: bool = False,
-        force_custom_text: bool = False,
-        force_patch_dropout: Optional[float] = None,
-        force_image_size: Optional[Union[int, Tuple[int, int]]] = None,
-        pretrained_image: bool = False,
-        pretrained_hf: bool = True,
-        image_mean: Optional[Tuple[float, ...]] = None,
-        image_std: Optional[Tuple[float, ...]] = None,
-        aug_cfg: Optional[Union[Dict[str, Any], AugmentationCfg]] = None,
-        cache_dir: Optional[str] = None,
-        output_dict: Optional[bool] = None,
-        det_image_size=1024,
-        dataset_type=None
-):
+def create_model_and_transforms(model_name: str,
+                                pretrained: Optional[str] = None,
+                                precision: str = 'fp32',
+                                device: Union[str, torch.device] = 'cpu',
+                                jit: bool = False,
+                                force_quick_gelu: bool = False,
+                                force_custom_text: bool = False,
+                                force_patch_dropout: Optional[float] = None,
+                                force_image_size: Optional[Union[int, Tuple[int, int]]] = None,
+                                pretrained_image: bool = False,
+                                pretrained_hf: bool = True,
+                                image_mean: Optional[Tuple[float, ...]] = None,
+                                image_std: Optional[Tuple[float, ...]] = None,
+                                aug_cfg: Optional[Union[Dict[str, Any], AugmentationCfg]] = None,
+                                cache_dir: Optional[str] = None,
+                                output_dict: Optional[bool] = None,
+                                det_image_size=1024,
+                                dataset_type=None):
     model = create_model(
         model_name,
         pretrained,
@@ -324,12 +324,11 @@ def create_model_and_transforms(
         resize_longest_max=True,
     )
     if dataset_type == "sanity_check":
-        preprocess_train = image_transform(
-            det_image_size,
-            is_train=True,
-            mean=image_mean,
-            std=image_std,
-            aug_cfg=aug_cfg)
+        preprocess_train = image_transform(det_image_size,
+                                           is_train=True,
+                                           mean=image_mean,
+                                           std=image_std,
+                                           aug_cfg=aug_cfg)
     elif dataset_type is not None:
         preprocess_train = [preprocess_val_det, preprocess_val_img] \
             if 'distill' in dataset_type or dataset_type == 'region_clip'\
@@ -340,29 +339,28 @@ def create_model_and_transforms(
                                  std=image_std,
                                  aug_cfg=aug_cfg)
     else:
-        preprocess_train = image_transform(
-            model.visual.image_size,
-            is_train=True,
-            mean=image_mean,
-            std=image_std,
-            aug_cfg=aug_cfg)
+        preprocess_train = image_transform(model.visual.image_size,
+                                           is_train=True,
+                                           mean=image_mean,
+                                           std=image_std,
+                                           aug_cfg=aug_cfg)
 
     return model, preprocess_train, [preprocess_val_det, preprocess_val_img]
 
 
 def create_model_from_pretrained(
-        model_name: str,
-        pretrained: Optional[str] = None,
-        precision: str = 'fp32',
-        device: Union[str, torch.device] = 'cpu',
-        jit: bool = False,
-        force_quick_gelu: bool = False,
-        force_custom_text: bool = False,
-        force_image_size: Optional[Union[int, Tuple[int, int]]] = None,
-        return_transform: bool = True,
-        image_mean: Optional[Tuple[float, ...]] = None,
-        image_std: Optional[Tuple[float, ...]] = None,
-        cache_dir: Optional[str] = None,
+    model_name: str,
+    pretrained: Optional[str] = None,
+    precision: str = 'fp32',
+    device: Union[str, torch.device] = 'cpu',
+    jit: bool = False,
+    force_quick_gelu: bool = False,
+    force_custom_text: bool = False,
+    force_image_size: Optional[Union[int, Tuple[int, int]]] = None,
+    return_transform: bool = True,
+    image_mean: Optional[Tuple[float, ...]] = None,
+    image_std: Optional[Tuple[float, ...]] = None,
+    cache_dir: Optional[str] = None,
 ):
     model = create_model(
         model_name,
