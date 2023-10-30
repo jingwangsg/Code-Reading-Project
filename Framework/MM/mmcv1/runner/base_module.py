@@ -58,6 +58,8 @@ class BaseModule(nn.Module, metaclass=ABCMeta):
 
         is_top_level_module = False
         # check if it is top-level module
+        # if _params_init_info is created the first time
+        # *
         if not hasattr(self, '_params_init_info'):
             # The `_params_init_info` is used to record the initialization
             # information of the parameters
