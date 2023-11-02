@@ -250,11 +250,10 @@ def main(args):
             assert args.epochs_cooldown is not None,\
                 "Please specify the number of cooldown epochs for this lr schedule."
             cooldown_steps = (data["train"].dataloader.num_batches // args.accum_freq) * args.epochs_cooldown
-            scheduler = const_lr_cooldown(optimizer, args.lr, args.warmup, total_steps, cooldown_steps,
-                                          args.lr_cooldown_power, args.lr_cooldown_end)
+            scheduler = const_lr_cooldown(optimizer, args.lr, args.warmup, total_steps, cooldown_steps, args.lr_cooldown_power,
+                                          args.lr_cooldown_end)
         else:
-            logging.error(
-                f'Unknown scheduler, {args.lr_scheduler}. Available options are: cosine, const, const-cooldown.')
+            logging.error(f'Unknown scheduler, {args.lr_scheduler}. Available options are: cosine, const, const-cooldown.')
             exit(1)
 
     # determine if this worker should save logs and checkpoints. only do so if it is rank == 0
@@ -305,8 +304,7 @@ def main(args):
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()
 
-            if completed_epoch == args.epochs or (args.save_frequency > 0 and
-                                                  (completed_epoch % args.save_frequency) == 0):
+            if completed_epoch == args.epochs or (args.save_frequency > 0 and (completed_epoch % args.save_frequency) == 0):
                 torch.save(
                     checkpoint_dict,
                     os.path.join(args.checkpoint_path, f"epoch_{completed_epoch}.pt"),

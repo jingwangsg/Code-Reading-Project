@@ -17,8 +17,8 @@ from mmdet import __version__
 from mmdet.apis import init_random_seed, set_random_seed, train_detector
 from mmdet.datasets import build_dataset
 from mmdet.models import build_detector
-from mmdet.utils import (collect_env, get_device, get_root_logger, replace_cfg_vals, rfnext_init_model,
-                         setup_multi_processes, update_data_root)
+from mmdet.utils import (collect_env, get_device, get_root_logger, replace_cfg_vals, rfnext_init_model, setup_multi_processes,
+                         update_data_root)
 import models  # noqa
 import datasets  # noqa
 
@@ -29,9 +29,7 @@ def parse_args():
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument('--resume-from', help='the checkpoint file to resume from')
     parser.add_argument('--auto-resume', action='store_true', help='resume from the latest checkpoint automatically')
-    parser.add_argument('--no-validate',
-                        action='store_true',
-                        help='whether not to evaluate the checkpoint during training')
+    parser.add_argument('--no-validate', action='store_true', help='whether not to evaluate the checkpoint during training')
     group_gpus = parser.add_mutually_exclusive_group()
     group_gpus.add_argument('--gpus',
                             type=int,
@@ -42,18 +40,11 @@ def parse_args():
                             nargs='+',
                             help='(Deprecated, please use --gpu-id) ids of gpus to use '
                             '(only applicable to non-distributed training)')
-    group_gpus.add_argument('--gpu-id',
-                            type=int,
-                            default=0,
-                            help='id of gpu to use '
+    group_gpus.add_argument('--gpu-id', type=int, default=0, help='id of gpu to use '
                             '(only applicable to non-distributed training)')
     parser.add_argument('--seed', type=int, default=None, help='random seed')
-    parser.add_argument('--diff-seed',
-                        action='store_true',
-                        help='Whether or not set different seeds for different ranks')
-    parser.add_argument('--deterministic',
-                        action='store_true',
-                        help='whether to set deterministic options for CUDNN backend.')
+    parser.add_argument('--diff-seed', action='store_true', help='Whether or not set different seeds for different ranks')
+    parser.add_argument('--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
     parser.add_argument('--options',
                         nargs='+',
                         action=DictAction,
@@ -208,13 +199,7 @@ def main():
     # add an attribute for visualization convenience
     model.CLASSES = datasets[0].CLASSES
 
-    train_detector(model,
-                   datasets,
-                   cfg,
-                   distributed=distributed,
-                   validate=(not args.no_validate),
-                   timestamp=timestamp,
-                   meta=meta)
+    train_detector(model, datasets, cfg, distributed=distributed, validate=(not args.no_validate), timestamp=timestamp, meta=meta)
 
 
 if __name__ == '__main__':

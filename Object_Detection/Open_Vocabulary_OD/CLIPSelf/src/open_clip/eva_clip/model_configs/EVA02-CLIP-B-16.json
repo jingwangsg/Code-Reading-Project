@@ -9,7 +9,7 @@
         "mlp_ratio": 2.6667,
         "eva_model_name": "eva-clip-b-16-X",
         "drop_path_rate": 0.0,
-        "xattn": false,
+        "xattn": true,
         "fusedLN": true,
         "rope": true,
         "pt_hw_seq_len": 16,

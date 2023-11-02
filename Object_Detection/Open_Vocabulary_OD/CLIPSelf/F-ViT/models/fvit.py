@@ -26,18 +26,20 @@ class FViT(TwoStageDetector):
 
         return res
 
-    def forward_train(self,
-                      img,
-                      img_metas,
-                      gt_bboxes,
-                      gt_labels,
-                      gt_bboxes_ignore=None,
-                      gt_masks=None,
-                      proposals=None,
-                      gt_captions=None,
-                      gt_embeds=None,
-                      **kwargs):
-        # 
+    def forward_train(
+        self,
+        img,
+        img_metas,
+        gt_bboxes,
+        gt_labels,
+        gt_bboxes_ignore=None,
+        gt_masks=None,
+        proposals=None,
+        gt_captions=None,
+        gt_embeds=None,
+        **kwargs,
+    ):
+
         res_feats = self.backbone(img)
         if self.with_neck:
             x = self.neck(res_feats[:-1])

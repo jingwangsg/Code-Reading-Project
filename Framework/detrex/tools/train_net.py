@@ -31,11 +31,7 @@ from detectron2.engine.defaults import create_ddp_model
 from detectron2.evaluation import inference_on_dataset, print_csv_format
 from detectron2.utils import comm
 from detectron2.utils.file_io import PathManager
-from detectron2.utils.events import (
-    CommonMetricPrinter, 
-    JSONWriter, 
-    TensorboardXWriter
-)
+from detectron2.utils.events import (CommonMetricPrinter, JSONWriter, TensorboardXWriter)
 from detectron2.checkpoint import DetectionCheckpointer
 # from detrex.checkpoint import DetectionCheckpointer
 
@@ -72,7 +68,7 @@ class Trainer(SimpleTrainer):
 
                 grad_scaler = GradScaler()
         self.grad_scaler = grad_scaler
-        
+
         # set True to use amp training
         self.amp = amp
 
@@ -93,7 +89,6 @@ class Trainer(SimpleTrainer):
         """
         data = next(self._data_loader_iter)
         data_time = time.perf_counter() - start
-
         """
         If you want to do something with the losses, you can wrap the model.
         """
@@ -104,7 +99,6 @@ class Trainer(SimpleTrainer):
                 loss_dict = {"total_loss": loss_dict}
             else:
                 losses = sum(loss_dict.values())
-
         """
         If you need to accumulate gradients or do something similar, you can
         wrap the optimizer with your custom `zero_grad()` method.
@@ -156,26 +150,20 @@ def do_test(cfg, model, eval_only=False):
         else:
             logger.info("Run evaluation without EMA.")
         if "evaluator" in cfg.dataloader:
-            ret = inference_on_dataset(
-                model, instantiate(cfg.dataloader.test), instantiate(cfg.dataloader.evaluator)
-            )
+            ret = inference_on_dataset(model, instantiate(cfg.dataloader.test), instantiate(cfg.dataloader.evaluator))
             print_csv_format(ret)
         return ret
-    
+
     logger.info("Run evaluation without EMA.")
     if "evaluator" in cfg.dataloader:
-        ret = inference_on_dataset(
-            model, instantiate(cfg.dataloader.test), instantiate(cfg.dataloader.evaluator)
-        )
+        ret = inference_on_dataset(model, instantiate(cfg.dataloader.test), instantiate(cfg.dataloader.evaluator))
         print_csv_format(ret)
 
         if cfg.train.model_ema.enabled:
             logger.info("Run evaluation with EMA.")
             with ema.apply_model_ema_and_restore(model):
                 if "evaluator" in cfg.dataloader:
-                    ema_ret = inference_on_dataset(
-                        model, instantiate(cfg.dataloader.test), instantiate(cfg.dataloader.evaluator)
-                    )
+                    ema_ret = inference_on_dataset(model, instantiate(cfg.dataloader.test), instantiate(cfg.dataloader.evaluator))
                     print_csv_format(ema_ret)
                     ret.update(ema_ret)
         return ret
@@ -204,14 +192,14 @@ def do_train(args, cfg):
     logger = logging.getLogger("detectron2")
     logger.info("Model:\n{}".format(model))
     model.to(cfg.train.device)
-    
+
     # instantiate optimizer
     cfg.optimizer.params.model = model
     optim = instantiate(cfg.optimizer)
 
     # build training loader
     train_loader = instantiate(cfg.dataloader.train)
-    
+
     # create ddp model
     model = create_ddp_model(model, **cfg.train.ddp)
 
@@ -225,14 +213,13 @@ def do_train(args, cfg):
         amp=cfg.train.amp.enabled,
         clip_grad_params=cfg.train.clip_grad.params if cfg.train.clip_grad.enabled else None,
     )
-    
+
     checkpointer = DetectionCheckpointer(
         model,
         cfg.train.output_dir,
         trainer=trainer,
         # save model ema
-        **ema.may_get_ema_checkpointer(cfg, model)
-    )
+        **ema.may_get_ema_checkpointer(cfg, model))
 
     if comm.is_main_process():
         # writers = default_writers(cfg.train.output_dir, cfg.train.max_iter)
@@ -247,23 +234,17 @@ def do_train(args, cfg):
             PathManager.mkdirs(cfg.train.wandb.params.dir)
             writers.append(WandbWriter(cfg))
 
-    trainer.register_hooks(
-        [
-            hooks.IterationTimer(),
-            ema.EMAHook(cfg, model) if cfg.train.model_ema.enabled else None,
-            hooks.LRScheduler(scheduler=instantiate(cfg.lr_multiplier)),
-            hooks.PeriodicCheckpointer(checkpointer, **cfg.train.checkpointer)
-            if comm.is_main_process()
-            else None,
-            hooks.EvalHook(cfg.train.eval_period, lambda: do_test(cfg, model)),
-            hooks.PeriodicWriter(
-                writers,
-                period=cfg.train.log_period,
-            )
-            if comm.is_main_process()
-            else None,
-        ]
-    )
+    trainer.register_hooks([
+        hooks.IterationTimer(),
+        ema.EMAHook(cfg, model) if cfg.train.model_ema.enabled else None,
+        hooks.LRScheduler(scheduler=instantiate(cfg.lr_multiplier)),
+        hooks.PeriodicCheckpointer(checkpointer, **cfg.train.checkpointer) if comm.is_main_process() else None,
+        hooks.EvalHook(cfg.train.eval_period, lambda: do_test(cfg, model)),
+        hooks.PeriodicWriter(
+            writers,
+            period=cfg.train.log_period,
+        ) if comm.is_main_process() else None,
+    ])
 
     checkpointer.resume_or_load(cfg.train.init_checkpoint, resume=args.resume)
     if args.resume and checkpointer.has_checkpoint():
@@ -279,7 +260,7 @@ def main(args):
     cfg = LazyConfig.load(args.config_file)
     cfg = LazyConfig.apply_overrides(cfg, args.opts)
     default_setup(cfg, args)
-    
+
     # Enable fast debugging by running several iterations to check for any bugs.
     if cfg.train.fast_dev_run.enabled:
         cfg.train.max_iter = 20
@@ -290,7 +271,7 @@ def main(args):
         model = instantiate(cfg.model)
         model.to(cfg.train.device)
         model = create_ddp_model(model)
-        
+
         # using ema for evaluation
         ema.may_build_model_ema(cfg, model)
         DetectionCheckpointer(model, **ema.may_get_ema_checkpointer(cfg, model)).load(cfg.train.init_checkpoint)

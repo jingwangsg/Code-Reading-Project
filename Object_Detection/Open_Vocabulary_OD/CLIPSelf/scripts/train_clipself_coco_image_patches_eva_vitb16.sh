@@ -1,6 +1,7 @@
-DATA_DIR=/export/home/kningtg/TASKS/OVOD/data
-CHECKPOINTS=/export/home/kningtg/TASKS/OVOD/checkpoints
-torchrun --nproc_per_node 4 -m training.main --batch-size=1 --lr=1e-5 --wd=0.1 --epochs=6 --workers=4 \
+DATA_DIR=$HOME/TASKS/OVOD/data
+CHECKPOINTS=$HOME/TASKS/OVOD/checkpoints
+NPROC=$1
+torchrun --nproc_per_node $NPROC -m training.main --batch-size=2 --lr=1e-5 --wd=0.1 --epochs=6 --workers=4 \
     --model EVA02-CLIP-B-16 --pretrained eva --warmup 1000 --zeroshot-frequency 1 --dataset-type grid_distill \
     --test-type coco_panoptic --train-data $DATA_DIR/coco/annotations/instances_train2017.json \
     --val-data $DATA_DIR/coco/annotations/panoptic_val2017.json \
